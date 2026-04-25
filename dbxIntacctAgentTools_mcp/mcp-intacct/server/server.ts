@@ -3,24 +3,29 @@
  *
  * Mounts:
  *   - AppKit plugin set (server, lakebase, analytics, files)
- *   - The custom MCP server at /mcp (HTTP + SSE transports) — see ./mcp/server.ts
+ *   - Lakebase services (tenant registry + MCP call log)
+ *   - The custom MCP server at /mcp (HTTP + SSE transports)
  *
  * Discovery: Databricks AI Playground enumerates Databricks Apps whose
- * names start with `mcp-` and treats them as custom MCP servers. The
- * Playground hits the `/mcp/sse` and `/mcp/messages` endpoints below.
+ * names start with `mcp-` and treats them as custom MCP servers.
  *
- * Pattern: we instantiate AppKit with `server({ autoStart: false })` so
- * we can call `appkit.server.extend()` to mount our custom Express
- * middleware before starting the listener. Without this, the server
- * starts before our routes register and Playground sees 404s.
+ * Startup order matters: `bindLakebase()` and `initSchema()` must run
+ * BEFORE `appkit.server.start()` so the first request finds the
+ * registry initialized. We use `server({ autoStart: false })` and call
+ * `start()` explicitly after wiring.
  */
 
 import { createApp, server, lakebase, analytics, files } from '@databricks/appkit';
+import { bindLakebase, initSchema } from './lakebase/index.js';
 import { mountMcpServer } from './mcp/server.js';
 
 const appkit = await createApp({
   plugins: [server({ autoStart: false }), lakebase(), analytics(), files()],
 });
+
+// Initialize Lakebase schema (idempotent) before binding services.
+await initSchema(appkit.lakebase.pool);
+bindLakebase(appkit.lakebase.pool);
 
 appkit.server.extend((app) => {
   mountMcpServer(app);

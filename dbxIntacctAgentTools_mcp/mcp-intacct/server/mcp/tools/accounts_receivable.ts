@@ -18,7 +18,7 @@ export function registerAccountsReceivableTools(mcp: McpServer): void {
       },
     },
     async (args) =>
-      runTenantCall(args.tenant_id, (client) =>
+      runTenantCall({ toolName: 'list_customers', toolInput: args }, (client) =>
         client.listCustomers({
           nameContains: args.name_contains,
           maxResults: args.max_results,
@@ -39,7 +39,7 @@ export function registerAccountsReceivableTools(mcp: McpServer): void {
       },
     },
     async (args) =>
-      runTenantCall(args.tenant_id, (client) =>
+      runTenantCall({ toolName: 'list_open_invoices', toolInput: args }, (client) =>
         client.listOpenInvoices({
           customerId: args.customer_id,
           agingBucket: args.aging_bucket,
@@ -58,6 +58,8 @@ export function registerAccountsReceivableTools(mcp: McpServer): void {
       },
     },
     async (args) =>
-      runTenantCall(args.tenant_id, (client) => client.getCustomerBalance(args.customer_id)),
+      runTenantCall({ toolName: 'get_customer_balance', toolInput: args }, (client) =>
+        client.getCustomerBalance(args.customer_id),
+      ),
   );
 }
