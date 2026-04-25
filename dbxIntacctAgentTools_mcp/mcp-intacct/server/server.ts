@@ -18,6 +18,7 @@
 import { createApp, server, lakebase, analytics, files } from '@databricks/appkit';
 import { bindLakebase, initSchema } from './lakebase/index.js';
 import { mountMcpServer } from './mcp/server.js';
+import { mountTrpc } from './trpc/mount.js';
 
 const appkit = await createApp({
   plugins: [server({ autoStart: false }), lakebase(), analytics(), files()],
@@ -29,6 +30,7 @@ bindLakebase(appkit.lakebase.pool);
 
 appkit.server.extend((app) => {
   mountMcpServer(app);
+  mountTrpc(app);
 });
 
 await appkit.server.start();

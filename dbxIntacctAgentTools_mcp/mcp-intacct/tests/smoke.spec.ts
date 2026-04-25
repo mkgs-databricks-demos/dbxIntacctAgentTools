@@ -44,19 +44,22 @@ let consoleErrors: string[] = [];
 let pageErrors: string[] = [];
 let failedRequests: string[] = [];
 
-test('smoke test - app loads and displays home page', async ({ page }) => {
+test('smoke test - app loads and displays admin tenants page', async ({ page }) => {
   await page.goto('/');
 
-  await expect(page.getByRole('heading', { name: APP_CONFIG.name })).toBeVisible();
-  await expect(
-    page.getByRole('heading', { name: 'Welcome to your Databricks App' }),
-  ).toBeVisible();
-  await expect(page.getByText('Getting Started')).toBeVisible();
+  // Header
+  await expect(page.getByRole('heading', { name: 'mcp-intacct admin' })).toBeVisible();
+  // Top-level nav (Tenants / Recent calls)
+  await expect(page.getByRole('link', { name: 'Tenants' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Recent calls' })).toBeVisible();
+  // Tenants page heading + add button
+  await expect(page.getByRole('heading', { name: 'Tenants', level: 2 })).toBeVisible();
+  await expect(page.getByRole('button', { name: '+ Add tenant' })).toBeVisible();
+});
 
-  await expect(page.getByRole('link', { name: 'Home' })).toBeVisible();
-  for (const [, plugin] of enabledPages) {
-    await expect(page.getByRole('link', { name: plugin.navLabel })).toBeVisible();
-  }
+test('smoke test - recent calls page loads', async ({ page }) => {
+  await page.goto('/calls');
+  await expect(page.getByRole('heading', { name: 'Recent MCP calls' })).toBeVisible();
 });
 
 for (const [name, plugin] of enabledPages) {
