@@ -7,7 +7,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { runTenantCall } from './_helpers.js';
 
 export function registerAccountsReceivableTools(mcp: McpServer): void {
-  mcp.tool(
+  mcp.registerTool(
     'list_customers',
     {
       description: 'List active customers for the given Sage Intacct company.',
@@ -26,7 +26,7 @@ export function registerAccountsReceivableTools(mcp: McpServer): void {
       ),
   );
 
-  mcp.tool(
+  mcp.registerTool(
     'list_open_invoices',
     {
       description:
@@ -48,7 +48,7 @@ export function registerAccountsReceivableTools(mcp: McpServer): void {
       ),
   );
 
-  mcp.tool(
+  mcp.registerTool(
     'get_customer_balance',
     {
       description: 'Get the open AR balance for a single customer, broken out by aging bucket.',

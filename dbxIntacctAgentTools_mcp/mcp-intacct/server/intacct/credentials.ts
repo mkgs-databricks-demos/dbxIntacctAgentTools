@@ -37,7 +37,9 @@ export async function loadTenant(companyId: string): Promise<IntacctCredentials>
   const senderPassword = requireEnv('INTACCT_SENDER_PASSWORD');
 
   const scope = process.env[SECRET_SCOPE_ENV] ?? DEFAULT_SECRET_SCOPE;
-  const w = new WorkspaceClient();
+  // Empty config object → SDK reads DATABRICKS_HOST + auth from env
+  // (the app platform injects these for the auto-provisioned SPN).
+  const w = new WorkspaceClient({});
 
   const userKey = `intacct_user_${companyId}`;
   const passwordKey = `intacct_password_${companyId}`;
