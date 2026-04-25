@@ -58,6 +58,10 @@ databricks secrets put-secret <scope> intacct_sender_password --string-value "<p
 | `hls_fde` | `hls_fde` | production | `fevm-hls-fde.cloud.databricks.com` |
 | `prod` | TBD | production | TBD |
 
+## Roadmap
+
+Open work and known issues are tracked in [NEXT_STEPS.md](NEXT_STEPS.md).
+
 ## License
 
 See [LICENSE](LICENSE).
