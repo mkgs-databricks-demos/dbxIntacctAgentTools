@@ -2,9 +2,10 @@
  * MCP tools — General Ledger.
  *
  * Per-tool flow:
- *   1. Resolve a per-tenant IntacctClient (cached) via `tenant_id` arg
- *   2. Call the curated client method
- *   3. Return MCP-shaped JSON
+ *   1. runTenantCall validates tenant_id against the registry, resolves
+ *      the tenant client, persists a call-log row, and returns the
+ *      JSON result formatted for MCP.
+ *   2. The handler closes over the curated client method.
  */
 
 import { z } from 'zod';
@@ -19,14 +20,14 @@ export function registerGeneralLedgerTools(mcp: McpServer): void {
         'List General Ledger accounts for the given Sage Intacct company. ' +
         'Supports optional filters on account_no prefix and modified_date.',
       inputSchema: {
-        tenant_id: z.string().describe('Sage Intacct company_id (per-tenant key in the registry)'),
+        tenant_id: z.string().describe('Sage Intacct tenant_id (registered in tenant_registry)'),
         account_no_prefix: z.string().optional().describe('Filter by account_no prefix (e.g. "4" for revenue accounts)'),
         modified_since: z.string().optional().describe('ISO 8601 date — only accounts modified since this timestamp'),
         max_results: z.number().int().positive().max(1000).optional().default(100),
       },
     },
     async (args) =>
-      runTenantCall(args.tenant_id, (client) =>
+      runTenantCall({ toolName: 'list_gl_accounts', toolInput: args }, (client) =>
         client.listGlAccounts({
           accountNoPrefix: args.account_no_prefix,
           modifiedSince: args.modified_since,
@@ -45,7 +46,9 @@ export function registerGeneralLedgerTools(mcp: McpServer): void {
       },
     },
     async (args) =>
-      runTenantCall(args.tenant_id, (client) => client.getJournalEntry(args.journal_entry_id)),
+      runTenantCall({ toolName: 'get_journal_entry', toolInput: args }, (client) =>
+        client.getJournalEntry(args.journal_entry_id),
+      ),
   );
 
   mcp.registerTool(
@@ -63,7 +66,7 @@ export function registerGeneralLedgerTools(mcp: McpServer): void {
       },
     },
     async (args) =>
-      runTenantCall(args.tenant_id, (client) =>
+      runTenantCall({ toolName: 'query_gl_details', toolInput: args }, (client) =>
         client.queryGlDetails({
           startDate: args.start_date,
           endDate: args.end_date,
