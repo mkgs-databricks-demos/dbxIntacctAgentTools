@@ -11,15 +11,20 @@
  * list_customers, list_vendors) before adding writes.
  */
 
-import type { Express, Request, Response } from 'express';
+import type { Application, Request, Response } from 'express';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { registerTools } from './tools/index.js';
 
 const SSE_TRANSPORTS = new Map<string, SSEServerTransport>();
 
-/** Mount the MCP server onto the AppKit Express app. */
-export function mountMcpServer(app: Express): void {
+/**
+ * Mount the MCP server onto the AppKit Express app.
+ *
+ * The parameter is `Application` (not `Express`) because AppKit's
+ * `appkit.server.extend()` callback receives an `express.Application`.
+ */
+export function mountMcpServer(app: Application): void {
   const mcp = new McpServer(
     {
       name: 'mcp-intacct',
@@ -37,7 +42,7 @@ export function mountMcpServer(app: Express): void {
   registerTools(mcp);
 
   // SSE transport: long-lived connection for client → server messages.
-  app.get('/mcp/sse', async (req: Request, res: Response) => {
+  app.get('/mcp/sse', async (_req: Request, res: Response) => {
     const transport = new SSEServerTransport('/mcp/messages', res);
     SSE_TRANSPORTS.set(transport.sessionId, transport);
 

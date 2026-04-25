@@ -12,7 +12,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { runTenantCall } from './_helpers.js';
 
 export function registerGeneralLedgerTools(mcp: McpServer): void {
-  mcp.tool(
+  mcp.registerTool(
     'list_gl_accounts',
     {
       description:
@@ -35,7 +35,7 @@ export function registerGeneralLedgerTools(mcp: McpServer): void {
       ),
   );
 
-  mcp.tool(
+  mcp.registerTool(
     'get_journal_entry',
     {
       description: 'Fetch one journal entry by ID, including line items and dimensions.',
@@ -48,7 +48,7 @@ export function registerGeneralLedgerTools(mcp: McpServer): void {
       runTenantCall(args.tenant_id, (client) => client.getJournalEntry(args.journal_entry_id)),
   );
 
-  mcp.tool(
+  mcp.registerTool(
     'query_gl_details',
     {
       description:

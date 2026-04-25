@@ -13,6 +13,8 @@ import { getTenantClient, IntacctError } from '../../intacct/index.js';
 export interface ToolTextResult {
   content: Array<{ type: 'text'; text: string }>;
   isError?: boolean;
+  // MCP SDK's ToolCallback expects an index signature on the return type.
+  [key: string]: unknown;
 }
 
 /**

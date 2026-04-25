@@ -77,7 +77,7 @@ export class IntacctAuth {
   }
 
   /** Build authorization headers ready for a Sage REST call. */
-  async authorize(extraHeaders: Record<string, string> = {}): Promise<HeadersInit> {
+  async authorize(extraHeaders: Record<string, string> = {}): Promise<Record<string, string>> {
     const token = await this.getToken();
     return {
       Authorization: `Bearer ${token}`,
