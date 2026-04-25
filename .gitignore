@@ -38,7 +38,8 @@ client/dist/
 
 # OpenAPI generated client (regenerate via scripts/)
 dbxIntacctAgentTools_sdk/src/intacct_sdk/_generated/intacct_openapi/
-dbxIntacctAgentTools_mcp/mcp-intacct/server/intacct/_generated/
+dbxIntacctAgentTools_mcp/mcp-intacct/server/intacct/_generated/intacct-openapi.ts
+dbxIntacctAgentTools_mcp/mcp-intacct/spec/
 
 # IDE
 .vscode/*
