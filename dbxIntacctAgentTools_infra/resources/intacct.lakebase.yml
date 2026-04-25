@@ -1,0 +1,60 @@
+# Lakebase Autoscaling — Intacct Agent OLTP Database
+#
+# PostgreSQL-compatible database for the MCP server / app layer. Stores:
+#   - Tenant registry (tenant_id → secret-scope key mapping)
+#   - MCP call log (tool, params, latency, status, request_id)
+#   - Agent conversation memory (per-user MCP session state)
+#   - Token cache for active Sage Intacct sessions per tenant
+#
+# AppKit's Lakebase plugin connects via direct Postgres wire protocol on
+# port 5432. The platform injects PGHOST, PGPORT, PGDATABASE, PGUSER, and
+# PGSSLMODE automatically when the app declares a `postgres` resource.
+
+resources:
+
+  postgres_projects:
+    intacct_lakebase:
+      project_id: ${var.lakebase_project_id}
+      display_name: Intacct Agent — Lakebase
+      pg_version: 17
+
+      history_retention_duration: "604800s"
+
+      default_endpoint_settings:
+        autoscaling_limit_min_cu: 0.5
+        autoscaling_limit_max_cu: 2
+
+      lifecycle:
+        prevent_destroy: true
+
+# ---------------------------------------------------------------------------
+# Target-specific overrides
+# ---------------------------------------------------------------------------
+targets:
+
+  dev:
+    resources:
+      postgres_projects:
+        intacct_lakebase:
+          display_name: Intacct Agent — Lakebase [${bundle.target}]
+          default_endpoint_settings:
+            autoscaling_limit_min_cu: 0.5
+            autoscaling_limit_max_cu: 2
+
+  hls_fde:
+    resources:
+      postgres_projects:
+        intacct_lakebase:
+          display_name: Intacct Agent — Lakebase
+          default_endpoint_settings:
+            autoscaling_limit_min_cu: 0.5
+            autoscaling_limit_max_cu: 4
+
+  prod:
+    resources:
+      postgres_projects:
+        intacct_lakebase:
+          display_name: Intacct Agent — Lakebase
+          default_endpoint_settings:
+            autoscaling_limit_min_cu: 0.5
+            autoscaling_limit_max_cu: 4

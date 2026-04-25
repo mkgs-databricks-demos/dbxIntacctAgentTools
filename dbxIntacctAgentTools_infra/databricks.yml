@@ -1,0 +1,172 @@
+# Databricks Asset Bundle — dbxIntacctAgentTools_infra
+# Shared infrastructure for the Sage Intacct Query and Agent toolkit.
+# Deploy this bundle BEFORE the dbxIntacctAgentTools_mcp application bundle.
+#
+# Manages: secret scopes, Unity Catalog schemas/volumes/grants, SQL warehouses,
+#          Lakebase projects, MLflow3 experiments, registered models, and
+#          bootstrap DDL jobs.
+#
+# See https://docs.databricks.com/en/dev-tools/bundles/settings.html
+
+bundle:
+  name: "dbxIntacctAgentTools_infra"
+
+include:
+  - resources/*.schema.yml
+  - resources/*.secret_scope.yml
+  - resources/*.sql_warehouse.yml
+  - resources/*.job.yml
+  - resources/*.experiment.yml
+  - resources/*.registered_model.yml
+  - resources/*.yml
+
+# ---------------------------------------------------------------------------
+# Variable declarations — assigned per-target below.
+#
+# CONVENTION — schema & catalog references:
+#   The `catalog` and `schema` variables feed ONLY into the schema resource
+#   definition (resources/intacct.schema.yml).
+#
+#   All OTHER resources MUST reference the schema through deployed-resource
+#   substitutions:
+#     ${resources.schemas.intacct_schema.catalog_name}
+#     ${resources.schemas.intacct_schema.name}
+#     ${resources.schemas.intacct_schema.id}
+#
+# CONVENTION — secret scope key names:
+#   The `client_id_dbs_key` and `client_secret_dbs_key` control the key
+#   names used inside the shared secret scope. Targets override these to
+#   schema-qualified names so multiple schemas can share a single scope.
+#
+#   These variables are passed to the UC setup job and used by the
+#   ensure-service-principal notebook to store/check Databricks SPN
+#   credentials. The Sage Intacct credentials use the fixed key prefix
+#   `intacct_*` (sender, company users) and are admin-provisioned.
+# ---------------------------------------------------------------------------
+variables:
+  catalog:
+    description: Unity Catalog catalog for Intacct data objects. USED ONLY by the schema resource.
+  schema:
+    description: Unity Catalog schema name within the catalog. USED ONLY by the schema resource.
+  secret_scope_name:
+    description: The Databricks secret scope name for Intacct credentials.
+    default: intacct_credentials
+  client_id_dbs_key:
+    description: Key name for the Intacct app SPN client_id (Databricks-side OAuth M2M).
+    default: client_id
+  client_secret_dbs_key:
+    description: Key name for the Intacct app SPN client_secret (Databricks-side OAuth M2M).
+    default: client_secret
+  run_as_user:
+    description: The user or service principal that workflows should run as.
+  higher_level_service_principal:
+    description: >
+      Service principal application ID for higher-level (non-dev) deployments.
+    default: acf021b4-87c6-44ff-b3d7-45c59d63fe4d
+  lakebase_project_id:
+    description: >
+      Lakebase Autoscaling project ID. Target-specific so dev and production
+      have isolated OLTP databases. Globally unique slug within the workspace.
+    default: intacct-agent
+  postgres_branch:
+    description: Lakebase branch — set to `production` (auto-created with the project).
+    default: production
+  postgres_database:
+    description: Lakebase database name on the production branch.
+    default: databricks_postgres
+  serverless_environment_version:
+    description: Serverless environment version for notebook/job tasks.
+    default: "5"
+  telemetry_table_prefix:
+    description: Prefix for app telemetry tables (otel_logs, otel_traces, otel_metrics).
+    default: app
+
+  # Tags — applied to all deployed resources via presets
+  tags_project:
+    default: Sage Intacct Agent Tools
+    description: Project tag for deployed resources.
+  tags_businessUnit:
+    default: Field Engineering
+    description: Business unit tag.
+  tags_developer:
+    default: matthew.giglia@databricks.com
+    description: Primary developer contact for Ops.
+  tags_requestedBy:
+    default: Internal
+    description: Primary business-unit stakeholder(s).
+  tags_RemoveAfter:
+    default: 2027-04-25
+    description: Required Databricks demo-environment tag for long-lived demos.
+
+# ---------------------------------------------------------------------------
+# Targets
+# ---------------------------------------------------------------------------
+targets:
+
+  # ── dev ──────────────────────────────────────────────────────────────────
+  dev:
+    mode: development
+    default: true
+    presets:
+      source_linked_deployment: false
+      tags:
+        project: ${var.tags_project}
+        businessUnit: ${var.tags_businessUnit}
+        requestedBy: ${var.tags_requestedBy}
+        developer: ${var.tags_developer}
+        RemoveAfter: ${var.tags_RemoveAfter}
+        env: ${bundle.target}
+    workspace:
+      host: https://fevm-hls-fde.cloud.databricks.com
+      root_path: /Workspace/Users/${var.run_as_user}/.bundle/${bundle.name}/${bundle.target}
+    variables:
+      catalog: hls_fde_dev
+      schema: intacct
+      run_as_user: matthew.giglia@databricks.com
+      client_id_dbs_key: client_id_dev_matthew_giglia_${var.schema}
+      client_secret_dbs_key: client_secret_dev_matthew_giglia_${var.schema}
+      lakebase_project_id: dev-matthew-giglia-intacct-agent
+
+  # ── hls_fde (production — same workspace as dev) ────────────────────────
+  hls_fde:
+    mode: production
+    presets:
+      source_linked_deployment: false
+      tags:
+        project: ${var.tags_project}
+        businessUnit: ${var.tags_businessUnit}
+        requestedBy: ${var.tags_requestedBy}
+        developer: ${var.tags_developer}
+        RemoveAfter: ${var.tags_RemoveAfter}
+        env: ${bundle.target}
+    workspace:
+      host: https://fevm-hls-fde.cloud.databricks.com
+      root_path: /Workspace/.bundle/${bundle.name}/${bundle.target}
+    variables:
+      catalog: hls_fde
+      schema: intacct
+      higher_level_service_principal: acf021b4-87c6-44ff-b3d7-45c59d63fe4d
+      run_as_user: ${var.higher_level_service_principal}
+      serverless_environment_version: "5"
+      client_id_dbs_key: client_id_${var.schema}
+      client_secret_dbs_key: client_secret_${var.schema}
+    permissions:
+      - user_name: matthew.giglia@databricks.com
+        level: CAN_MANAGE
+      - group_name: users
+        level: CAN_RUN
+      - service_principal_name: ${var.run_as_user}
+        level: CAN_MANAGE
+
+  # ── prod (placeholder — separate workspace TBD) ─────────────────────────
+  prod:
+    mode: production
+    workspace:
+      host: https://fevm-hls-fde.cloud.databricks.com
+      root_path: /Users/matthew.giglia@databricks.com/.bundle/${bundle.name}/${bundle.target}
+    run_as:
+      user_name: matthew.giglia@databricks.com
+    variables:
+      catalog: hls_fde
+      schema: intacct
+      run_as_user: matthew.giglia@databricks.com

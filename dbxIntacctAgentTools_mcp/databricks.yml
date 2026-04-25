@@ -1,0 +1,169 @@
+# Databricks Asset Bundle — dbxIntacctAgentTools_mcp
+# Application bundle for the Sage Intacct custom MCP server.
+# Deploy this AFTER the dbxIntacctAgentTools_infra bundle.
+#
+# Manages: AppKit Databricks App `mcp-intacct` (Node.js + React + tRPC) that
+#          exposes a custom MCP server discoverable by Databricks AI Playground
+#          (the `mcp-` prefix on the app name is required for that discovery).
+#
+# See https://docs.databricks.com/en/dev-tools/bundles/settings.html
+
+bundle:
+  name: "dbxIntacctAgentTools_mcp"
+
+include:
+  - resources/*.yml
+  - resources/*/*.yml
+
+# ---------------------------------------------------------------------------
+# Variable declarations
+#
+# CONVENTION — catalog & schema references:
+#   Cross-bundle resource substitutions are NOT supported in DAB. The app
+#   bundle maintains its own `catalog` and `schema` variables whose
+#   per-target values MUST match those deployed by dbxIntacctAgentTools_infra.
+#
+#   Infra deploys (referenced by substitution within that bundle):
+#     - UC schema:      resources.schemas.intacct_schema
+#     - Secret scope:   resources.secret_scopes.intacct_secret_scope
+#     - SQL warehouse:  resources.sql_warehouses.infra_warehouse
+#     - Lakebase:       resources.postgres_projects.intacct_lakebase
+#
+#   This bundle references those by name/value:
+#     ${var.catalog}.${var.schema}      — fully qualified schema
+#     ${var.secret_scope_name}          — secret scope name
+#     ${var.warehouse_id}               — SQL warehouse ID (post-deploy resolve)
+#     ${var.postgres_branch}            — Lakebase branch resource path
+#     ${var.postgres_database}          — Lakebase database resource path
+#
+#   If the infra target values change, update BOTH bundles.
+# ---------------------------------------------------------------------------
+variables:
+  catalog:
+    description: UC catalog (must match dbxIntacctAgentTools_infra for the same target).
+  schema:
+    description: UC schema (must match dbxIntacctAgentTools_infra for the same target).
+  secret_scope_name:
+    description: Databricks secret scope name for Intacct credentials.
+    default: intacct_credentials
+  client_id_dbs_key:
+    description: Key name for the Intacct app SPN client_id in the secret scope.
+    default: client_id
+  client_secret_dbs_key:
+    description: Key name for the Intacct app SPN client_secret in the secret scope.
+    default: client_secret
+  run_as_user:
+    description: User or SP that workflows run as.
+  higher_level_service_principal:
+    description: SP application_id used for non-dev deployments.
+    default: acf021b4-87c6-44ff-b3d7-45c59d63fe4d
+
+  # SQL warehouse ID — resolve from infra bundle summary post-deploy.
+  warehouse_id:
+    description: SQL warehouse ID for the AppKit analytics plugin (from infra).
+
+  # Lakebase Postgres — full resource paths for AppKit lakebase plugin.
+  # Obtain via:
+  #   databricks postgres list-branches projects/{project-id}
+  #   databricks postgres list-databases {branch-name}
+  postgres_branch:
+    description: Full Lakebase branch resource path. Format projects/{id}/branches/{id}.
+  postgres_database:
+    description: Full Lakebase database resource path.
+
+  # UC Volume path for raw Sage responses (AppKit files plugin)
+  raw_responses_volume_path:
+    description: Full UC Volume path for raw Sage Intacct API responses.
+
+  # App Telemetry (Beta) — OpenTelemetry export to UC
+  telemetry_table_prefix:
+    description: Prefix for OTel tables ({prefix}_otel_logs/_traces/_metrics).
+    default: mcp_intacct
+
+  # Tags
+  tags_project:
+    default: Sage Intacct Agent Tools
+  tags_businessUnit:
+    default: Field Engineering
+  tags_developer:
+    default: matthew.giglia@databricks.com
+  tags_requestedBy:
+    default: Internal
+  tags_RemoveAfter:
+    default: 2027-04-25
+
+# ---------------------------------------------------------------------------
+# Targets
+# ---------------------------------------------------------------------------
+targets:
+
+  # ── dev ──────────────────────────────────────────────────────────────────
+  dev:
+    mode: development
+    default: true
+    presets:
+      source_linked_deployment: false
+      tags:
+        project: ${var.tags_project}
+        businessUnit: ${var.tags_businessUnit}
+        requestedBy: ${var.tags_requestedBy}
+        developer: ${var.tags_developer}
+        RemoveAfter: ${var.tags_RemoveAfter}
+        env: ${bundle.target}
+    workspace:
+      host: https://fevm-hls-fde.cloud.databricks.com
+      root_path: /Workspace/Users/${var.run_as_user}/.bundle/${bundle.name}/${bundle.target}
+    variables:
+      catalog: hls_fde_dev
+      schema: intacct
+      run_as_user: matthew.giglia@databricks.com
+      client_id_dbs_key: client_id_dev_matthew_giglia_${var.schema}
+      client_secret_dbs_key: client_secret_dev_matthew_giglia_${var.schema}
+      # Lakebase + warehouse + volume paths — fill in after infra first deploy
+      postgres_branch: projects/dev-matthew-giglia-intacct-agent/branches/production
+      postgres_database: projects/dev-matthew-giglia-intacct-agent/branches/production/databases/databricks_postgres
+      warehouse_id: REPLACE_WITH_INFRA_WAREHOUSE_ID
+      raw_responses_volume_path: /Volumes/${var.catalog}/${var.schema}/raw_responses
+
+  # ── hls_fde ──────────────────────────────────────────────────────────────
+  hls_fde:
+    mode: production
+    presets:
+      source_linked_deployment: false
+      tags:
+        project: ${var.tags_project}
+        businessUnit: ${var.tags_businessUnit}
+        requestedBy: ${var.tags_requestedBy}
+        developer: ${var.tags_developer}
+        RemoveAfter: ${var.tags_RemoveAfter}
+        env: ${bundle.target}
+    workspace:
+      host: https://fevm-hls-fde.cloud.databricks.com
+      root_path: /Workspace/.bundle/${bundle.name}/${bundle.target}
+    variables:
+      catalog: hls_fde
+      schema: intacct
+      higher_level_service_principal: acf021b4-87c6-44ff-b3d7-45c59d63fe4d
+      run_as_user: ${var.higher_level_service_principal}
+      client_id_dbs_key: client_id_${var.schema}
+      client_secret_dbs_key: client_secret_${var.schema}
+      postgres_branch: projects/intacct-agent/branches/production
+      postgres_database: projects/intacct-agent/branches/production/databases/databricks_postgres
+      warehouse_id: REPLACE_WITH_INFRA_WAREHOUSE_ID
+      raw_responses_volume_path: /Volumes/${var.catalog}/${var.schema}/raw_responses
+    permissions:
+      - user_name: matthew.giglia@databricks.com
+        level: CAN_MANAGE
+      - group_name: users
+        level: CAN_RUN
+      - service_principal_name: ${var.run_as_user}
+        level: CAN_MANAGE
+
+  # ── prod (placeholder) ───────────────────────────────────────────────────
+  prod:
+    mode: production
+    workspace:
+      host: https://fevm-hls-fde.cloud.databricks.com
+      root_path: /Users/matthew.giglia@databricks.com/.bundle/${bundle.name}/${bundle.target}
+    run_as:
+      user_name: matthew.giglia@databricks.com

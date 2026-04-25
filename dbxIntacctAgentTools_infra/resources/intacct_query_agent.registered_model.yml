@@ -1,0 +1,23 @@
+# Unity Catalog registered model for the Intacct Query Agent.
+#
+# Placeholder for an agent model that performs natural-language → MCP-tool
+# routing and result summarization. Versions are registered from runs in
+# the intacct_traces experiment and can be served behind the MCP server.
+
+resources:
+  registered_models:
+    intacct_query_agent_model:
+      name: intacct_query_agent
+      catalog_name: ${resources.schemas.intacct_schema.catalog_name}
+      schema_name: ${resources.schemas.intacct_schema.name}
+      comment: >
+        Intacct Query Agent — an LLM-based router that maps natural-language
+        questions to MCP tool calls and summarizes results. Versions are
+        registered from runs in the intacct_traces experiment.
+      grants:
+        - principal: ${var.run_as_user}
+          privileges:
+            - ALL_PRIVILEGES
+        - principal: account users
+          privileges:
+            - EXECUTE

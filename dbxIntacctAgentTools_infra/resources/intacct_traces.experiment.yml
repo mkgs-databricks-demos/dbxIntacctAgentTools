@@ -1,0 +1,14 @@
+# MLflow 3 experiment for Intacct MCP server agent traces and tool runs.
+#
+# Used for tracing every MCP tool invocation: input args, Sage REST calls
+# made (and their latencies), the eventual response, and any backoff/retry
+# behavior. Also the home for agent evaluation runs (mlflow.genai.evaluate).
+
+resources:
+  experiments:
+    intacct_traces_experiment:
+      name: /Workspace/.experiments/intacct_traces
+      artifact_location: "dbfs:/Volumes/${resources.volumes.mlflow_artifacts.catalog_name}/${resources.volumes.mlflow_artifacts.schema_name}/${resources.volumes.mlflow_artifacts.name}"
+      tags:
+        - key: description
+          value: MLflow experiment for Intacct MCP server tool runs and agent traces
