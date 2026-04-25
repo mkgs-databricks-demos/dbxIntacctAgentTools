@@ -16,6 +16,7 @@
  */
 
 import { createApp, server, lakebase, analytics, files } from '@databricks/appkit';
+import { bindRawResponseWriter } from './intacct/raw_response_writer.js';
 import { bindLakebase, initSchema } from './lakebase/index.js';
 import { mountMcpServer } from './mcp/server.js';
 import { mountTrpc } from './trpc/mount.js';
@@ -27,6 +28,10 @@ const appkit = await createApp({
 // Initialize Lakebase schema (idempotent) before binding services.
 await initSchema(appkit.lakebase.pool);
 bindLakebase(appkit.lakebase.pool);
+
+// Bind the raw-response capture writer onto the `files` volume so every
+// Sage REST round-trip lands as JSON in the raw_responses UC Volume.
+bindRawResponseWriter(appkit.files('files'));
 
 appkit.server.extend((app) => {
   mountMcpServer(app);

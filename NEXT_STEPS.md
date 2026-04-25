@@ -47,9 +47,11 @@ What's missing before this is a real production tool — the rest of this doc.
 ## 2. Observability
 
 ### 2.1 Raw-response capture to the `raw_responses` UC Volume
-**What:** in `IntacctClient.request()`, the `onRawResponse` hook is wired but unused. Implement a hook that writes JSON payloads to `/Volumes/<catalog>/<schema>/raw_responses/<tenant_id>/<date>/<request_id>.json` via the AppKit `files` plugin, and records a pointer row in the UC `raw_response_index` Delta table.
-**Why:** debugging Sage REST schema drift without re-running calls; audit evidence for regulated customers.
-**Effort:** small — wire two existing primitives.
+**Status:** Volume writes done in #8; Delta pointer row remains.
+**What done (#8):** `RawResponseWriter` wired to AppKit's `files` plugin, drops every Sage REST round-trip as `<tenant_id>/<YYYY-MM-DD>/<request_id>.json` in the volume.
+**What remains:** insert a pointer row into the UC `raw_response_index` Delta table on each capture (request_id, tenant_id, endpoint, method, http_status, volume_path, bytes, captured_at) so SQL queries can find captures without listing the volume.
+**Why:** the table is the analytical entry-point for replay/debugging; the volume alone needs `LIST` to discover captures.
+**Effort:** small — Statement Execution API call from the writer. AppKit's `analytics` plugin is read-only, so use the Databricks SDK directly.
 
 ### 2.2 Stream `mcp_call_log` from Lakebase → UC Delta
 **What:** Lakeflow Job that reads from Lakebase OLTP and writes to the UC Delta `mcp_call_log` table created in `target-tables-ddl.sql`.
