@@ -1,0 +1,77 @@
+# Unity Catalog schema for Sage Intacct data and agent telemetry.
+#
+# This is the ONLY resource file that should reference ${var.catalog} and
+# ${var.schema} directly. All other resources reference via deployed-resource
+# substitutions:
+#
+#   Catalog name:  ${resources.schemas.intacct_schema.catalog_name}
+#   Schema name:   ${resources.schemas.intacct_schema.name}
+#   Schema ID:     ${resources.schemas.intacct_schema.id}
+#
+# NOTE: App SPN grants (USE_SCHEMA, SELECT, MODIFY) are applied dynamically
+# by the DDL notebook (target-tables-ddl), not declared here.
+
+resources:
+  schemas:
+    intacct_schema:
+      name: ${var.schema}
+      catalog_name: ${var.catalog}
+      comment: >
+        Unity Catalog schema for the Sage Intacct query and agent toolkit.
+        Houses analytical tables (raw API responses, parsed entity tables,
+        MCP call log, agent traces), managed volumes for raw responses
+        and MLflow artifacts, registered models, and OTel telemetry tables.
+
+      lifecycle:
+        prevent_destroy: true
+
+      grants:
+        - principal: account users
+          privileges:
+            - USE_SCHEMA
+
+# ---------------------------------------------------------------------------
+# Target-specific grants
+# ---------------------------------------------------------------------------
+targets:
+
+  dev:
+    resources:
+      schemas:
+        intacct_schema:
+          grants:
+            - principal: account users
+              privileges:
+                - USE_SCHEMA
+            - principal: ${var.run_as_user}
+              privileges:
+                - ALL_PRIVILEGES
+
+  hls_fde:
+    resources:
+      schemas:
+        intacct_schema:
+          grants:
+            - principal: ${var.higher_level_service_principal}
+              privileges:
+                - ALL_PRIVILEGES
+            - principal: matthew.giglia@databricks.com
+              privileges:
+                - ALL_PRIVILEGES
+            - principal: account users
+              privileges:
+                - USE_SCHEMA
+                - SELECT
+
+  prod:
+    resources:
+      schemas:
+        intacct_schema:
+          grants:
+            - principal: matthew.giglia@databricks.com
+              privileges:
+                - ALL_PRIVILEGES
+            - principal: account users
+              privileges:
+                - USE_SCHEMA
+                - SELECT

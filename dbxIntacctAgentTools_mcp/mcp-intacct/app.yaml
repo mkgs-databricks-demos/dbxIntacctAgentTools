@@ -1,0 +1,48 @@
+# Runtime configuration for the mcp-intacct AppKit application.
+#
+# Platform-injected (no valueFrom needed):
+#   PGHOST, PGPORT, PGDATABASE, PGUSER, PGSSLMODE — from postgres resource
+#   DATABRICKS_CLIENT_ID, DATABRICKS_CLIENT_SECRET — app's own SPN identity
+#   DATABRICKS_WAREHOUSE_ID — from sql_warehouse resource
+#   DATABRICKS_VOLUME_FILES — from volume resource
+#
+# Platform-injected (when telemetry_export_destinations is configured):
+#   OTEL_EXPORTER_OTLP_ENDPOINT  — http://localhost:4314
+#   OTEL_EXPORTER_OTLP_PROTOCOL  — grpc
+#   OTEL_RESOURCE_ATTRIBUTES     — workspace.id, app.name
+#   OTEL_SERVICE_NAME            — app name
+#
+# Custom env vars:
+#   LAKEBASE_ENDPOINT           — Lakebase endpoint path (postgres resource)
+#   INTACCT_APP_CLIENT_ID       — Intacct app SPN application_id
+#   INTACCT_APP_CLIENT_SECRET   — Intacct app SPN OAuth secret
+#   INTACCT_WORKSPACE_URL       — Databricks workspace URL
+#   INTACCT_SENDER_ID           — Sage Intacct ISV Sender ID
+#   INTACCT_SENDER_PASSWORD     — Sage Intacct ISV Sender password
+#   INTACCT_SECRET_SCOPE        — secret scope name (for per-tenant credential resolution at request time)
+
+command: ['npm', 'run', 'start']
+env:
+  # OpenTelemetry — sample 10% of traces by default
+  - name: OTEL_TRACES_SAMPLER
+    value: 'parentbased_traceidratio'
+  - name: OTEL_TRACES_SAMPLER_ARG
+    value: '0.1'
+
+  # Lakebase
+  - name: LAKEBASE_ENDPOINT
+    valueFrom: postgres
+
+  # Intacct app SPN
+  - name: INTACCT_APP_CLIENT_ID
+    valueFrom: intacct-app-client-id
+  - name: INTACCT_APP_CLIENT_SECRET
+    valueFrom: intacct-app-client-secret
+  - name: INTACCT_WORKSPACE_URL
+    valueFrom: intacct-workspace-url
+
+  # Sage Intacct ISV credentials
+  - name: INTACCT_SENDER_ID
+    valueFrom: intacct-sender-id
+  - name: INTACCT_SENDER_PASSWORD
+    valueFrom: intacct-sender-password

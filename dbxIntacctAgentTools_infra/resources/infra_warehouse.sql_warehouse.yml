@@ -1,0 +1,49 @@
+# Serverless SQL warehouse for infrastructure setup tasks (DDL, GRANT)
+# and runtime analytical queries from the Intacct MCP server / agent.
+#
+# Referenced as: ${resources.sql_warehouses.infra_warehouse.id}
+
+resources:
+  sql_warehouses:
+    infra_warehouse:
+      name: Intacct Agent Infra [${bundle.target}]
+
+      cluster_size: "2X-Small"
+      warehouse_type: PRO
+      enable_serverless_compute: true
+      enable_photon: true
+
+      channel:
+        name: CHANNEL_NAME_PREVIEW
+
+      auto_stop_mins: 10
+
+      min_num_clusters: 1
+      max_num_clusters: 1
+
+      permissions:
+        - user_name: matthew.giglia@databricks.com
+          level: CAN_MANAGE
+
+# Target-specific overrides
+targets:
+
+  hls_fde:
+    resources:
+      sql_warehouses:
+        infra_warehouse:
+          permissions:
+            - user_name: matthew.giglia@databricks.com
+              level: CAN_MANAGE
+            - service_principal_name: ${var.higher_level_service_principal}
+              level: CAN_MANAGE
+            - group_name: users
+              level: CAN_USE
+
+  prod:
+    resources:
+      sql_warehouses:
+        infra_warehouse:
+          permissions:
+            - user_name: matthew.giglia@databricks.com
+              level: CAN_MANAGE

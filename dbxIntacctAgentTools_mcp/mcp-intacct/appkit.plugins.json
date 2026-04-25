@@ -1,0 +1,101 @@
+{
+  "$schema": "https://databricks.github.io/appkit/schemas/template-plugins.schema.json",
+  "version": "1.0",
+  "plugins": {
+    "analytics": {
+      "name": "analytics",
+      "displayName": "Analytics Plugin",
+      "description": "SQL queries against the parsed Sage Intacct Delta tables",
+      "package": "@databricks/appkit",
+      "resources": {
+        "required": [
+          {
+            "type": "sql_warehouse",
+            "alias": "SQL Warehouse",
+            "resourceKey": "sql-warehouse",
+            "description": "SQL Warehouse for analytical queries",
+            "permission": "CAN_USE",
+            "fields": {
+              "id": {
+                "env": "DATABRICKS_WAREHOUSE_ID",
+                "description": "SQL Warehouse ID"
+              }
+            }
+          }
+        ],
+        "optional": []
+      }
+    },
+    "files": {
+      "name": "files",
+      "displayName": "Files Plugin",
+      "description": "UC Volume writes for raw Sage Intacct API response capture",
+      "package": "@databricks/appkit",
+      "resources": {
+        "required": [
+          {
+            "type": "volume",
+            "alias": "Files",
+            "resourceKey": "files",
+            "description": "Volume for raw response capture",
+            "permission": "WRITE_VOLUME",
+            "fields": {
+              "path": {
+                "env": "DATABRICKS_VOLUME_FILES",
+                "description": "Volume path"
+              }
+            }
+          }
+        ],
+        "optional": []
+      }
+    },
+    "lakebase": {
+      "name": "lakebase",
+      "displayName": "Lakebase",
+      "description": "Postgres OLTP — tenant registry, MCP call log, agent memory",
+      "package": "@databricks/appkit",
+      "resources": {
+        "required": [
+          {
+            "type": "postgres",
+            "alias": "Postgres",
+            "resourceKey": "postgres",
+            "description": "Lakebase Postgres database",
+            "permission": "CAN_CONNECT_AND_CREATE",
+            "fields": {
+              "branch": {
+                "description": "Full branch resource name (projects/{id}/branches/{id})"
+              },
+              "database": {
+                "description": "Full database resource name (projects/{id}/branches/{id}/databases/{id})"
+              },
+              "host": { "env": "PGHOST", "localOnly": true, "resolve": "postgres:host" },
+              "databaseName": { "env": "PGDATABASE", "localOnly": true, "resolve": "postgres:databaseName" },
+              "endpointPath": {
+                "env": "LAKEBASE_ENDPOINT",
+                "bundleIgnore": true,
+                "resolve": "postgres:endpointPath"
+              },
+              "port": { "env": "PGPORT", "localOnly": true, "value": "5432" },
+              "sslmode": { "env": "PGSSLMODE", "localOnly": true, "value": "require" }
+            }
+          }
+        ],
+        "optional": []
+      },
+      "requiredByTemplate": true
+    },
+    "server": {
+      "name": "server",
+      "displayName": "Server Plugin",
+      "description": "Express HTTP server (hosts the MCP HTTP/SSE endpoint and the admin UI)",
+      "package": "@databricks/appkit",
+      "resources": {
+        "required": [],
+        "optional": []
+      },
+      "requiredByTemplate": true
+    }
+  }
+}

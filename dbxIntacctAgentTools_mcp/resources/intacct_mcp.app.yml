@@ -1,0 +1,174 @@
+# Databricks App — mcp-intacct (AppKit)
+#
+# TypeScript/Node.js application built with @databricks/appkit. Hosts a
+# custom MCP (Model Context Protocol) server over HTTP/SSE alongside an
+# admin/HITL React UI. The `mcp-` prefix on the app name is REQUIRED for
+# the app to be auto-discovered as a custom MCP tool by Databricks AI
+# Playground.
+#
+# Architecture:
+#   AI Playground / agent  ── HTTP/SSE ──▶ MCP server (server/mcp/server.ts)
+#                                            │
+#                                            ├── Sage Intacct REST client (TS)
+#                                            │     ├── per-tenant credentials
+#                                            │     │     (resolved from secret
+#                                            │     │      scope at request time)
+#                                            │     ├── token cache + refresh
+#                                            │     └── pagination + backoff
+#                                            │
+#                                            ├── Lakebase Postgres
+#                                            │     - tenant registry
+#                                            │     - MCP call log
+#                                            │     - agent memory
+#                                            │
+#                                            └── UC SQL warehouse
+#                                                  (analytical reads of the
+#                                                   parsed Delta tables)
+#
+# Authentication:
+#   The app's auto-provisioned SPN reads Intacct app SPN credentials and
+#   Sage Intacct ISV/per-tenant credentials from the infra bundle's secret
+#   scope. These are injected via `valueFrom` directives in app.yaml. The
+#   app's own identity (DATABRICKS_CLIENT_ID/SECRET) is platform-injected.
+
+resources:
+  apps:
+    intacct_mcp:
+      name: mcp-intacct-${bundle.target}
+
+      description: >
+        Custom MCP server for Sage Intacct, hosted on Databricks Apps and
+        scaffolded with AppKit. Discoverable as a custom MCP tool in
+        Databricks AI Playground via the `mcp-` prefix. Exposes a curated
+        set of tool primitives (query GL accounts, get journal entries,
+        list customers/vendors, list invoices) over HTTP/SSE, with an
+        admin UI for tenant config and call audit.
+
+      source_code_path: ../mcp-intacct
+
+      # -----------------------------------------------------------------------
+      # App Telemetry (Beta) — OpenTelemetry export to Unity Catalog
+      # -----------------------------------------------------------------------
+      telemetry_export_destinations:
+        - unity_catalog:
+            logs_table: ${var.catalog}.${var.schema}.${var.telemetry_table_prefix}_otel_logs
+            traces_table: ${var.catalog}.${var.schema}.${var.telemetry_table_prefix}_otel_traces
+            metrics_table: ${var.catalog}.${var.schema}.${var.telemetry_table_prefix}_otel_metrics
+
+      # -----------------------------------------------------------------------
+      # User API scopes — delegated for OBO operations.
+      #   sql         — SQL warehouse queries (analytical reads)
+      #   files.files — read/write UC Volumes (raw Sage response capture)
+      # -----------------------------------------------------------------------
+      user_api_scopes:
+        - sql
+        - files.files
+
+      # -----------------------------------------------------------------------
+      # App resources — bind app SPN to secrets, warehouse, volume, Lakebase.
+      # The AppKit plugins read these via env vars at runtime.
+      # -----------------------------------------------------------------------
+      resources:
+        # ── AppKit analytics plugin: SQL warehouse ──
+        - name: sql-warehouse
+          description: SQL warehouse for analytical reads (parsed Intacct Delta tables)
+          sql_warehouse:
+            id: ${var.warehouse_id}
+            permission: CAN_USE
+
+        # ── AppKit files plugin: raw_responses volume ──
+        - name: files
+          description: UC Volume for capturing raw Sage Intacct API responses
+          volume:
+            path: ${var.raw_responses_volume_path}
+            permission: WRITE_VOLUME
+
+        # ── AppKit lakebase plugin: Postgres for tenant registry + MCP log ──
+        - name: postgres
+          description: Lakebase Postgres for tenant registry, MCP call log, and agent memory
+          postgres:
+            branch: ${var.postgres_branch}
+            database: ${var.postgres_database}
+            permission: CAN_CONNECT_AND_CREATE
+
+        # ── Intacct app SPN credentials (Databricks side OAuth M2M) ──
+        - name: intacct-app-client-id
+          description: Intacct app SPN application_id
+          secret:
+            scope: ${var.secret_scope_name}
+            key: ${var.client_id_dbs_key}
+            permission: READ
+        - name: intacct-app-client-secret
+          description: Intacct app SPN OAuth secret (admin-provisioned)
+          secret:
+            scope: ${var.secret_scope_name}
+            key: ${var.client_secret_dbs_key}
+            permission: READ
+        - name: intacct-workspace-url
+          description: Databricks workspace URL
+          secret:
+            scope: ${var.secret_scope_name}
+            key: workspace_url
+            permission: READ
+
+        # ── Sage Intacct ISV credentials ──
+        - name: intacct-sender-id
+          description: Sage Intacct ISV Sender ID
+          secret:
+            scope: ${var.secret_scope_name}
+            key: intacct_sender_id
+            permission: READ
+        - name: intacct-sender-password
+          description: Sage Intacct ISV Sender password
+          secret:
+            scope: ${var.secret_scope_name}
+            key: intacct_sender_password
+            permission: READ
+
+      # -----------------------------------------------------------------------
+      # Permissions — base
+      # -----------------------------------------------------------------------
+      permissions:
+        - user_name: matthew.giglia@databricks.com
+          level: CAN_MANAGE
+        - group_name: users
+          level: CAN_USE
+
+# ---------------------------------------------------------------------------
+# Target-specific overrides
+# ---------------------------------------------------------------------------
+targets:
+
+  dev:
+    resources:
+      apps:
+        intacct_mcp:
+          name: mcp-intacct-${bundle.target}
+          permissions:
+            - user_name: matthew.giglia@databricks.com
+              level: CAN_MANAGE
+            - group_name: users
+              level: CAN_USE
+
+  hls_fde:
+    resources:
+      apps:
+        intacct_mcp:
+          name: mcp-intacct
+          permissions:
+            - user_name: matthew.giglia@databricks.com
+              level: CAN_MANAGE
+            - service_principal_name: ${var.higher_level_service_principal}
+              level: CAN_MANAGE
+            - group_name: users
+              level: CAN_USE
+
+  prod:
+    resources:
+      apps:
+        intacct_mcp:
+          permissions:
+            - user_name: matthew.giglia@databricks.com
+              level: CAN_MANAGE
+            - group_name: users
+              level: CAN_USE

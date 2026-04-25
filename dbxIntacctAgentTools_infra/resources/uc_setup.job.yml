@@ -1,0 +1,87 @@
+# Job to bootstrap the Intacct Agent infrastructure.
+#
+# Two-task workflow:
+#   1. ensure_service_principal — creates (or finds) a least-privilege SPN
+#      dedicated to this schema, populates the secret scope with the SPN's
+#      client_id (under the schema-qualified key) and workspace_url,
+#      grants scope READ, and outputs application_id as a task value.
+#   2. create_target_tables — DDL + GRANT statements using the SPN from task 1.
+#
+# The client_secret must be provisioned separately by an admin via the
+# workspace UI, Databricks CLI, or external keystore.
+
+resources:
+  jobs:
+    intacct_agent_uc_setup:
+      name: Intacct Agent — UC Setup [${bundle.target}]
+
+      description: >
+        Bootstraps Intacct Agent infrastructure. Task 1 ensures a
+        least-privilege service principal (intacct-agent-{schema}) exists,
+        populates the secret scope with the SPN's client_id (schema-qualified)
+        and workspace_url, and grants the SPN READ access to the scope.
+        Task 2 creates the UC analytical tables (mcp_call_log, agent_traces,
+        tenant_registry_audit, raw_response_index) with liquid clustering
+        and grants USE CATALOG / USE SCHEMA / MODIFY / SELECT to the SPN.
+        The client_secret and Sage Intacct credentials must be provisioned
+        by an admin after the first run. Idempotent — safe to re-run.
+
+      parameters:
+        - name: catalog_use
+          default: ${resources.schemas.intacct_schema.catalog_name}
+        - name: schema_use
+          default: ${resources.schemas.intacct_schema.name}
+        - name: secret_scope_name
+          default: ${var.secret_scope_name}
+        - name: client_id_dbs_key
+          default: ${var.client_id_dbs_key}
+        - name: client_secret_dbs_key
+          default: ${var.client_secret_dbs_key}
+
+      tasks:
+        - task_key: ensure_service_principal
+          notebook_task:
+            notebook_path: ../src/uc_setup/ensure-service-principal.ipynb
+            source: WORKSPACE
+
+        - task_key: create_target_tables
+          depends_on:
+            - task_key: ensure_service_principal
+          notebook_task:
+            notebook_path: ../src/uc_setup/target-tables-ddl.sql
+            source: WORKSPACE
+            warehouse_id: ${resources.sql_warehouses.infra_warehouse.id}
+            base_parameters:
+              spn_application_id: "{{tasks.ensure_service_principal.values.spn_application_id}}"
+
+      max_concurrent_runs: 1
+      timeout_seconds: 600
+
+      tags:
+        component: setup
+        resource_type: tables
+
+# Target-specific overrides
+targets:
+
+  hls_fde:
+    resources:
+      jobs:
+        intacct_agent_uc_setup:
+          permissions:
+            - user_name: matthew.giglia@databricks.com
+              level: CAN_MANAGE
+            - service_principal_name: ${var.higher_level_service_principal}
+              level: CAN_MANAGE
+            - group_name: users
+              level: CAN_VIEW
+
+  prod:
+    resources:
+      jobs:
+        intacct_agent_uc_setup:
+          permissions:
+            - user_name: matthew.giglia@databricks.com
+              level: CAN_MANAGE
+            - service_principal_name: ${var.higher_level_service_principal}
+              level: CAN_MANAGE

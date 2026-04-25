@@ -1,0 +1,19 @@
+# Managed volume for storing raw Sage Intacct API responses (JSON / XML).
+#
+# Files are stored as: /Volumes/{catalog}/{schema}/raw_responses/{tenant_id}/{date}/{request_id}.json
+#
+# Used by the Python SDK and the MCP server to land raw payloads as evidence
+# / replay material before they are parsed into the silver/gold Delta tables.
+# Useful for debugging schema drift and Sage API changes between releases.
+
+resources:
+  volumes:
+    raw_responses_volume:
+      catalog_name: ${resources.schemas.intacct_schema.catalog_name}
+      schema_name: ${resources.schemas.intacct_schema.name}
+      name: raw_responses
+      volume_type: MANAGED
+      comment: >
+        Raw Sage Intacct API responses (JSON / XML) landed by the Python SDK
+        and MCP server. Organized by tenant_id and date. Source of truth for
+        replay, schema-drift debugging, and audit evidence.

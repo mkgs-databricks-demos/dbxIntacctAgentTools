@@ -1,0 +1,57 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+*.egg-info/
+.venv/
+venv/
+env/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Node / AppKit
+node_modules/
+*.log
+.npm/
+.next/
+.turbo/
+.parcel-cache/
+client/dist/
+**/dist/
+.env
+.env.local
+.env.*.local
+
+# AppKit generated
+**/appKitTypes.d.ts
+
+# Databricks
+.databricks/
+.databricks.lock.json
+.bundle-cache/
+
+# OpenAPI generated client (regenerate via scripts/)
+dbxIntacctAgentTools_sdk/src/intacct_sdk/_generated/intacct_openapi/
+dbxIntacctAgentTools_mcp/mcp-intacct/server/intacct/_generated/
+
+# IDE
+.vscode/*
+!.vscode/SELECT_KERNEL.md
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test artifacts
+test-results/
+playwright-report/
+coverage/

@@ -1,0 +1,14 @@
+# Managed volume for MLflow experiment artifacts (traces, prompts, evaluation outputs).
+#
+# Referenced by the intacct_traces experiment as its artifact_location.
+
+resources:
+  volumes:
+    mlflow_artifacts:
+      catalog_name: ${resources.schemas.intacct_schema.catalog_name}
+      schema_name: ${resources.schemas.intacct_schema.name}
+      name: mlflow_artifacts
+      volume_type: MANAGED
+      comment: >
+        MLflow experiment artifacts for the Intacct query/agent toolkit —
+        agent traces, prompt registry exports, evaluation result tables.
