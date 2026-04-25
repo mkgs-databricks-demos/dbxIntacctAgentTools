@@ -21,10 +21,18 @@ What's missing before this is a real production tool — the rest of this doc.
 ## 1. Sage Intacct integration depth
 
 ### 1.1 Use OpenAPI-generated types in `IntacctClient`
-**What:** the TS client methods currently return `Record<string, unknown>`. After running `./scripts/regenerate_intacct_client.sh` (which lands typed schemas under `server/intacct/_generated/intacct-openapi.ts`), thread those types through `client.listGlAccounts`, `client.getJournalEntry`, etc.
-**Why:** removes an entire class of "field doesn't exist" errors from MCP tool code and gives downstream agents richer schemas in the MCP `outputSchema`.
-**Effort:** small — one PR.
-**Prereq:** access to the published OpenAPI spec (network).
+**Status:** Blocked on auto-regen. Two unblocked paths documented; both end at the same outcome.
+**What:** the TS client methods currently return `Record<string, unknown>`; the Python SDK works against `dict[str, Any]`. Both should expose typed models so MCP tool callers and Lakeflow Job authors get compile-time field safety.
+**The blocker:** Sage's developer portal (`developer.sage.com`) is fronted by Cloudflare and 403s every automated request — `curl`, `WebFetch`, custom-User-Agent variants all rejected. The regen scripts are wired and ready (`mcp-intacct/scripts/regenerate_intacct_client.sh` and `dbxIntacctAgentTools_sdk/scripts/regenerate_client.sh`), but they can't fetch the spec on their own.
+**Two paths forward:** detailed step-by-step instructions, including what to type/where to put it, are in:
+- TypeScript / MCP server: [`dbxIntacctAgentTools_mcp/mcp-intacct/server/intacct/_generated/README.md`](dbxIntacctAgentTools_mcp/mcp-intacct/server/intacct/_generated/README.md)
+- Python SDK: [`dbxIntacctAgentTools_sdk/src/intacct_sdk/_generated/README.md`](dbxIntacctAgentTools_sdk/src/intacct_sdk/_generated/README.md)
+
+Each README documents:
+- **Option A** — hand-craft minimal types (TypeScript interfaces / Pydantic v2 models) for the curated method surface (~6 methods × 2 SDKs)
+- **Option B** — manual spec download from a browser, then run the regen script with `--spec <local-path>` for full surface coverage
+**Why:** removes "field doesn't exist" errors from MCP tool code; lets the MCP server emit richer `outputSchema` to AI Playground and other clients.
+**Effort:** Option A — 1 PR per SDK (~half day each). Option B — same plus one manual download per Sage release.
 
 ### 1.2 Build out the AP / Cash MCP tools
 **What:** add `list_vendors`, `list_bills`, `list_payments`, `get_cash_position` to `server/mcp/tools/`. Mirror the GL / AR shape: zod input schemas, `runTenantCall`, persisted to `mcp_call_log`.
