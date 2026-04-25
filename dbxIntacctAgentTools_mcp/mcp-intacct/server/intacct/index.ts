@@ -28,6 +28,15 @@ export type { PageFetcher, PaginateOptions } from './pagination.js';
  */
 import { IntacctClient } from './client.js';
 import type { IntacctClientOptions } from './client.js';
+import { getRawResponseWriter } from './raw_response_writer.js';
+
+export {
+  RawResponseWriter,
+  bindRawResponseWriter,
+  getRawResponseWriter,
+  _resetRawResponseWriter,
+} from './raw_response_writer.js';
+export type { MinimalVolumeAPI } from './raw_response_writer.js';
 
 const TENANT_CLIENTS = new Map<string, IntacctClient>();
 const MAX_CACHED_TENANTS = 32;
@@ -40,7 +49,16 @@ export async function getTenantClient(
   if (cached) {
     return cached;
   }
-  const client = await IntacctClient.forTenant(tenantId, opts);
+
+  // Auto-wire the raw-response writer if one is bound at app startup.
+  // Caller-supplied opts.onRawResponse always wins (used by tests).
+  const writer = getRawResponseWriter();
+  const composedOpts: IntacctClientOptions = {
+    ...opts,
+    onRawResponse: opts.onRawResponse ?? (writer ? (capture) => writer.write(capture) : undefined),
+  };
+
+  const client = await IntacctClient.forTenant(tenantId, composedOpts);
   if (TENANT_CLIENTS.size >= MAX_CACHED_TENANTS) {
     // Evict the oldest entry (Map iteration is insertion-ordered)
     const oldest = TENANT_CLIENTS.keys().next().value;
