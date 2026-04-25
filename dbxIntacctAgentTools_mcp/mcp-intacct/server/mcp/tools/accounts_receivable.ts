@@ -4,6 +4,7 @@
 
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { runTenantCall } from './_helpers.js';
 
 export function registerAccountsReceivableTools(mcp: McpServer): void {
   mcp.tool(
@@ -16,11 +17,13 @@ export function registerAccountsReceivableTools(mcp: McpServer): void {
         max_results: z.number().int().positive().max(1000).optional().default(100),
       },
     },
-    async (args) => {
-      return {
-        content: [{ type: 'text', text: `Stub: list_customers(${JSON.stringify(args)})` }],
-      };
-    },
+    async (args) =>
+      runTenantCall(args.tenant_id, (client) =>
+        client.listCustomers({
+          nameContains: args.name_contains,
+          maxResults: args.max_results,
+        }),
+      ),
   );
 
   mcp.tool(
@@ -35,11 +38,14 @@ export function registerAccountsReceivableTools(mcp: McpServer): void {
         max_results: z.number().int().positive().max(1000).optional().default(100),
       },
     },
-    async (args) => {
-      return {
-        content: [{ type: 'text', text: `Stub: list_open_invoices(${JSON.stringify(args)})` }],
-      };
-    },
+    async (args) =>
+      runTenantCall(args.tenant_id, (client) =>
+        client.listOpenInvoices({
+          customerId: args.customer_id,
+          agingBucket: args.aging_bucket,
+          maxResults: args.max_results,
+        }),
+      ),
   );
 
   mcp.tool(
@@ -51,10 +57,7 @@ export function registerAccountsReceivableTools(mcp: McpServer): void {
         customer_id: z.string(),
       },
     },
-    async (args) => {
-      return {
-        content: [{ type: 'text', text: `Stub: get_customer_balance(${JSON.stringify(args)})` }],
-      };
-    },
+    async (args) =>
+      runTenantCall(args.tenant_id, (client) => client.getCustomerBalance(args.customer_id)),
   );
 }

@@ -1,14 +1,15 @@
 /**
  * MCP tools — General Ledger.
  *
- * Implementation note: each tool resolves per-tenant credentials at call
- * time, instantiates an `IntacctClient`, and translates the call. Replace
- * the stub bodies with real client calls once the TS Intacct client is
- * wired up under `server/intacct/`.
+ * Per-tool flow:
+ *   1. Resolve a per-tenant IntacctClient (cached) via `tenant_id` arg
+ *   2. Call the curated client method
+ *   3. Return MCP-shaped JSON
  */
 
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { runTenantCall } from './_helpers.js';
 
 export function registerGeneralLedgerTools(mcp: McpServer): void {
   mcp.tool(
@@ -24,17 +25,14 @@ export function registerGeneralLedgerTools(mcp: McpServer): void {
         max_results: z.number().int().positive().max(1000).optional().default(100),
       },
     },
-    async (args) => {
-      // TODO: resolve credentials, call IntacctClient.list_gl_accounts(...), return rows
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Stub: list_gl_accounts(${JSON.stringify(args)}) — wire to IntacctClient`,
-          },
-        ],
-      };
-    },
+    async (args) =>
+      runTenantCall(args.tenant_id, (client) =>
+        client.listGlAccounts({
+          accountNoPrefix: args.account_no_prefix,
+          modifiedSince: args.modified_since,
+          maxResults: args.max_results,
+        }),
+      ),
   );
 
   mcp.tool(
@@ -46,11 +44,8 @@ export function registerGeneralLedgerTools(mcp: McpServer): void {
         journal_entry_id: z.string().describe('Sage Intacct journal entry ID'),
       },
     },
-    async (args) => {
-      return {
-        content: [{ type: 'text', text: `Stub: get_journal_entry(${JSON.stringify(args)})` }],
-      };
-    },
+    async (args) =>
+      runTenantCall(args.tenant_id, (client) => client.getJournalEntry(args.journal_entry_id)),
   );
 
   mcp.tool(
@@ -67,10 +62,14 @@ export function registerGeneralLedgerTools(mcp: McpServer): void {
         max_results: z.number().int().positive().max(5000).optional().default(500),
       },
     },
-    async (args) => {
-      return {
-        content: [{ type: 'text', text: `Stub: query_gl_details(${JSON.stringify(args)})` }],
-      };
-    },
+    async (args) =>
+      runTenantCall(args.tenant_id, (client) =>
+        client.queryGlDetails({
+          startDate: args.start_date,
+          endDate: args.end_date,
+          accountNoPrefix: args.account_no_prefix,
+          maxResults: args.max_results,
+        }),
+      ),
   );
 }
