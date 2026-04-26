@@ -16,6 +16,7 @@ function fakeLakebase(overrides: Partial<{
   upsert: ReturnType<typeof vi.fn>;
   disable: ReturnType<typeof vi.fn>;
   recent: ReturnType<typeof vi.fn>;
+  distinctToolNames: ReturnType<typeof vi.fn>;
 }> = {}): LakebaseServices {
   return {
     registry: {
@@ -24,11 +25,15 @@ function fakeLakebase(overrides: Partial<{
       upsert: overrides.upsert ?? vi.fn().mockResolvedValue(null),
       disable: overrides.disable ?? vi.fn().mockResolvedValue(null),
       require: vi.fn(),
+      requireWritable: vi.fn(),
       _clearCache: vi.fn(),
     } as unknown as LakebaseServices['registry'],
     callLog: {
       record: vi.fn(),
-      recent: overrides.recent ?? vi.fn().mockResolvedValue([]),
+      recent:
+        overrides.recent ??
+        vi.fn().mockResolvedValue({ rows: [], total: 0, limit: 25, offset: 0 }),
+      distinctToolNames: overrides.distinctToolNames ?? vi.fn().mockResolvedValue([]),
     } as unknown as LakebaseServices['callLog'],
   };
 }
@@ -118,8 +123,10 @@ describe('tRPC tenants', () => {
 });
 
 describe('tRPC mcpCallLog.recent', () => {
-  it('forwards filters with defaults', async () => {
-    const recent = vi.fn().mockResolvedValue([]);
+  const EMPTY_PAGE = { rows: [], total: 0, limit: 25, offset: 0 };
+
+  it('forwards filters with defaults (limit=25 / offset=0)', async () => {
+    const recent = vi.fn().mockResolvedValue(EMPTY_PAGE);
     const lakebase = fakeLakebase({ recent });
     const caller = appRouter.createCaller(createTestContext(lakebase));
 
@@ -128,25 +135,31 @@ describe('tRPC mcpCallLog.recent', () => {
     expect(recent).toHaveBeenCalledWith({
       tenantId: undefined,
       toolName: undefined,
-      limit: 50,
+      status: undefined,
+      limit: 25,
+      offset: 0,
     });
   });
 
-  it('forwards tenant + tool filters', async () => {
-    const recent = vi.fn().mockResolvedValue([]);
+  it('forwards tenant + tool + status + offset filters', async () => {
+    const recent = vi.fn().mockResolvedValue(EMPTY_PAGE);
     const lakebase = fakeLakebase({ recent });
     const caller = appRouter.createCaller(createTestContext(lakebase));
 
     await caller.mcpCallLog.recent({
       tenantId: 'acme',
       toolName: 'list_gl_accounts',
+      status: 'error',
       limit: 10,
+      offset: 100,
     });
 
     expect(recent).toHaveBeenCalledWith({
       tenantId: 'acme',
       toolName: 'list_gl_accounts',
+      status: 'error',
       limit: 10,
+      offset: 100,
     });
   });
 
@@ -155,5 +168,35 @@ describe('tRPC mcpCallLog.recent', () => {
     const caller = appRouter.createCaller(createTestContext(lakebase));
 
     await expect(caller.mcpCallLog.recent({ limit: 5_000 })).rejects.toThrow();
+  });
+
+  it('rejects negative offsets', async () => {
+    const lakebase = fakeLakebase();
+    const caller = appRouter.createCaller(createTestContext(lakebase));
+
+    await expect(caller.mcpCallLog.recent({ offset: -1 })).rejects.toThrow();
+  });
+
+  it('rejects unknown status values', async () => {
+    const lakebase = fakeLakebase();
+    const caller = appRouter.createCaller(createTestContext(lakebase));
+
+    await expect(
+      caller.mcpCallLog.recent({ status: 'pending' as unknown as 'success' }),
+    ).rejects.toThrow();
+  });
+});
+
+describe('tRPC mcpCallLog.toolNames', () => {
+  it('returns the distinct tool names from the call log', async () => {
+    const distinctToolNames = vi
+      .fn()
+      .mockResolvedValue(['get_journal_entry', 'list_gl_accounts']);
+    const lakebase = fakeLakebase({ distinctToolNames });
+    const caller = appRouter.createCaller(createTestContext(lakebase));
+
+    const names = await caller.mcpCallLog.toolNames();
+
+    expect(names).toEqual(['get_journal_entry', 'list_gl_accounts']);
   });
 });
