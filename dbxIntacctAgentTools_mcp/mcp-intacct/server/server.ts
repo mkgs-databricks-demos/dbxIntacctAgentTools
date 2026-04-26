@@ -16,7 +16,7 @@
  */
 
 import { createApp, server, lakebase, analytics, files } from '@databricks/appkit';
-import { bindRawResponseWriter } from './intacct/raw_response_writer.js';
+import { RawResponseIndexer, bindRawResponseWriter } from './intacct/raw_response_writer.js';
 import { bindLakebase, initSchema } from './lakebase/index.js';
 import { mountMcpServer } from './mcp/server.js';
 import { mountTrpc } from './trpc/mount.js';
@@ -29,9 +29,30 @@ const appkit = await createApp({
 await initSchema(appkit.lakebase.pool);
 bindLakebase(appkit.lakebase.pool);
 
-// Bind the raw-response capture writer onto the `files` volume so every
-// Sage REST round-trip lands as JSON in the raw_responses UC Volume.
-bindRawResponseWriter(appkit.files('files'));
+// Bind the raw-response capture writer:
+//  - volume side  → drops JSON into the raw_responses UC volume
+//  - indexer side → inserts a pointer row into the UC Delta
+//                    raw_response_index table via the analytics warehouse
+//
+// The indexer is only wired when the catalog + schema are configured
+// (RAW_RESPONSE_INDEX_CATALOG / _SCHEMA env vars). Without them, the
+// volume write proceeds normally — index rows are skipped.
+const indexCatalog = process.env.RAW_RESPONSE_INDEX_CATALOG;
+const indexSchema = process.env.RAW_RESPONSE_INDEX_SCHEMA;
+const indexer =
+  indexCatalog && indexSchema
+    ? new RawResponseIndexer({
+        query: (sql) => appkit.analytics.query(sql),
+        catalog: indexCatalog,
+        schema: indexSchema,
+      })
+    : null;
+
+bindRawResponseWriter({
+  volume: appkit.files('files'),
+  indexer,
+  volumeMountPath: process.env.DATABRICKS_VOLUME_FILES ?? null,
+});
 
 appkit.server.extend((app) => {
   mountMcpServer(app);

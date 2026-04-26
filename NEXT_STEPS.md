@@ -50,12 +50,9 @@ Each README documents:
 
 ## 2. Observability
 
-### 2.1 Raw-response capture to the `raw_responses` UC Volume
-**Status:** Volume writes done in #8; Delta pointer row remains.
+### 2.1 Raw-response capture to the `raw_responses` UC Volume — ✅ done in #17 (phase 2)
 **What done (#8):** `RawResponseWriter` wired to AppKit's `files` plugin, drops every Sage REST round-trip as `<tenant_id>/<YYYY-MM-DD>/<request_id>.json` in the volume.
-**What remains:** insert a pointer row into the UC `raw_response_index` Delta table on each capture (request_id, tenant_id, endpoint, method, http_status, volume_path, bytes, captured_at) so SQL queries can find captures without listing the volume.
-**Why:** the table is the analytical entry-point for replay/debugging; the volume alone needs `LIST` to discover captures.
-**Effort:** small — Statement Execution API call from the writer. AppKit's `analytics` plugin is read-only, so use the Databricks SDK directly.
+**What done (#17):** new `RawResponseIndexer` class — after each successful volume write, inserts a pointer row into the UC Delta `raw_response_index` table via the AppKit analytics plugin (the plugin's `query()` accepts INSERTs against the warehouse, so no Statement Execution API needed). Best-effort — index failures don't block the volume write. Configured per target via `RAW_RESPONSE_INDEX_CATALOG` / `RAW_RESPONSE_INDEX_SCHEMA` env vars; if either is unset, indexing is skipped silently. Volume mount path threaded in via `DATABRICKS_VOLUME_FILES` so the stored `volume_path` is fully qualified. SQL is rendered with single-quote-escaped literals.
 
 ### 2.2 Stream `mcp_call_log` from Lakebase → UC Delta — ✅ done in #15
 **What done:** new `intacct_mcp_call_log_sync` Lakeflow Job in the infra bundle. Watermark-driven incremental copy: reads `MAX(created_at)` from the UC Delta target, fetches Lakebase rows newer than that (capped by `batch_size=5000`), parses `tool_input` JSONB through `parse_json`, appends to Delta. Schedule cron `0 0/15 * * * ?` PAUSED by default — flip via UI when downstream consumers are wired. Connects to Lakebase via OAuth-rotated Postgres using `psycopg`. Side-fix: bundle validate was failing on the existing UC setup job because `target-tables-ddl.sql` lacked the `-- Databricks notebook source` header; added it. `databricks bundle validate --target dev` now passes.

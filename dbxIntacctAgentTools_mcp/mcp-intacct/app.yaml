@@ -24,6 +24,10 @@
 #                                 tenant registry. Read by the tRPC adminProcedure.
 #                                 Set per-target via the bundle databricks.yml. In dev only,
 #                                 the value '*' allows everyone (escape hatch for local work).
+#   RAW_RESPONSE_INDEX_CATALOG  — UC catalog holding the raw_response_index Delta table.
+#   RAW_RESPONSE_INDEX_SCHEMA   — UC schema holding the raw_response_index Delta table.
+#                                 If either is unset, the indexer is skipped (volume writes
+#                                 still happen). Both are populated by the bundle.
 
 command: ['npm', 'run', 'start']
 env:
@@ -54,4 +58,13 @@ env:
   # Admin allow-list — populate via app resource override or bundle var.
   # Empty string = no admins (read-only mode); '*' = open in dev only.
   - name: INTACCT_MCP_ADMIN_USERS
+    value: ''
+
+  # Raw-response index location — when both are set, every captured
+  # Sage REST response is also indexed in the UC Delta
+  # raw_response_index table. Defaults are filled in via bundle var
+  # substitution in resources/intacct_mcp.app.yml.
+  - name: RAW_RESPONSE_INDEX_CATALOG
+    value: ''
+  - name: RAW_RESPONSE_INDEX_SCHEMA
     value: ''
