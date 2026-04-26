@@ -63,3 +63,16 @@ databricks apps update mcp-intacct-dev \
 In `NODE_ENV=development` only, the value `*` opens mutations to every signed-in
 user (escape hatch for local work). Production with an empty value puts the app
 in read-only mode (every mutation returns `UNAUTHORIZED`).
+
+## Raw-response indexer
+
+The MCP server captures every Sage REST round-trip to `/Volumes/<catalog>/<schema>/raw_responses/<tenant>/<date>/<request_id>.json` (PR #8) and, when configured, also inserts a pointer row into the UC Delta `raw_response_index` table (PR #17) so SQL queries can find captures without listing the volume.
+
+Wire the indexer per target via `databricks apps update`:
+
+```bash
+databricks apps update mcp-intacct-dev \
+  --custom-env-vars RAW_RESPONSE_INDEX_CATALOG=hls_fde_dev,RAW_RESPONSE_INDEX_SCHEMA=intacct
+```
+
+If either env var is unset, the indexer is skipped silently and only the volume write happens. The Delta target table is created by the existing UC setup job (`raw_response_index` in `target-tables-ddl.sql`).
