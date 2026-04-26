@@ -39,6 +39,7 @@ const tenantUpsertInput = z.object({
   userSecretKey: z.string().min(1).max(256).optional(),
   passwordSecretKey: z.string().min(1).max(256).optional(),
   enabled: z.boolean().optional(),
+  writesEnabled: z.boolean().optional(),
   notes: z.string().max(2048).nullable().optional(),
 });
 

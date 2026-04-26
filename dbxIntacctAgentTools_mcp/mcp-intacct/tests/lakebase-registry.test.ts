@@ -16,6 +16,7 @@ const SAMPLE_ROW = {
   user_secret_key: 'intacct_user_acmecorp',
   password_secret_key: 'intacct_password_acmecorp',
   enabled: true,
+  writes_enabled: false,
   notes: null,
   created_at: new Date('2026-04-01'),
   updated_at: new Date('2026-04-25'),
@@ -90,6 +91,42 @@ describe('TenantRegistry.require', () => {
 
     const record = await registry.require('acmecorp');
     expect(record.companyId).toBe('acmecorp');
+    expect(record.writesEnabled).toBe(false);
+  });
+});
+
+describe('TenantRegistry.requireWritable', () => {
+  it('throws when writes_enabled is false', async () => {
+    const query = vi.fn().mockResolvedValue(rowResult([SAMPLE_ROW]));
+    const registry = new TenantRegistry(mockPool(query));
+
+    await expect(registry.requireWritable('acmecorp')).rejects.toThrow(/writes_enabled=false/);
+  });
+
+  it('returns the record when writes_enabled is true', async () => {
+    const query = vi
+      .fn()
+      .mockResolvedValue(rowResult([{ ...SAMPLE_ROW, writes_enabled: true }]));
+    const registry = new TenantRegistry(mockPool(query));
+
+    const record = await registry.requireWritable('acmecorp');
+    expect(record.writesEnabled).toBe(true);
+  });
+
+  it('throws when the tenant is missing', async () => {
+    const query = vi.fn().mockResolvedValue(rowResult([]));
+    const registry = new TenantRegistry(mockPool(query));
+
+    await expect(registry.requireWritable('ghost')).rejects.toThrow(/Unknown tenant/);
+  });
+
+  it('throws when the tenant is disabled', async () => {
+    const query = vi
+      .fn()
+      .mockResolvedValue(rowResult([{ ...SAMPLE_ROW, enabled: false, writes_enabled: true }]));
+    const registry = new TenantRegistry(mockPool(query));
+
+    await expect(registry.requireWritable('acmecorp')).rejects.toThrow(/disabled/);
   });
 });
 
@@ -128,6 +165,40 @@ describe('TenantRegistry.upsert', () => {
     const args = query.mock.calls[0][1] as unknown[];
     expect(args[3]).toBe('intacct_user_acmecorp');
     expect(args[4]).toBe('intacct_password_acmecorp');
+  });
+
+  it('defaults writes_enabled to false when omitted', async () => {
+    const query = vi.fn().mockResolvedValue(rowResult([SAMPLE_ROW]));
+    const registry = new TenantRegistry(mockPool(query));
+
+    await registry.upsert({
+      tenantId: 'acmecorp',
+      companyId: 'acmecorp',
+      displayName: 'Acme Corp',
+    });
+
+    const args = query.mock.calls[0][1] as unknown[];
+    // Argument order: [tenantId, companyId, displayName, userKey, passwordKey,
+    //                  enabled, writesEnabled, notes]
+    expect(args[6]).toBe(false);
+  });
+
+  it('forwards writes_enabled when set', async () => {
+    const query = vi
+      .fn()
+      .mockResolvedValue(rowResult([{ ...SAMPLE_ROW, writes_enabled: true }]));
+    const registry = new TenantRegistry(mockPool(query));
+
+    const result = await registry.upsert({
+      tenantId: 'acmecorp',
+      companyId: 'acmecorp',
+      displayName: 'Acme Corp',
+      writesEnabled: true,
+    });
+
+    expect(result.writesEnabled).toBe(true);
+    const args = query.mock.calls[0][1] as unknown[];
+    expect(args[6]).toBe(true);
   });
 });
 

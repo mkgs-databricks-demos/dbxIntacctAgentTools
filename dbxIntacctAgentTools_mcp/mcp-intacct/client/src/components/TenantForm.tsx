@@ -21,6 +21,7 @@ interface FormState {
   displayName: string;
   notes: string;
   enabled: boolean;
+  writesEnabled: boolean;
 }
 
 const EMPTY_FORM: FormState = {
@@ -29,6 +30,7 @@ const EMPTY_FORM: FormState = {
   displayName: '',
   notes: '',
   enabled: true,
+  writesEnabled: false,
 };
 
 export function TenantForm({ tenantId, onDone }: Props) {
@@ -51,6 +53,7 @@ export function TenantForm({ tenantId, onDone }: Props) {
       displayName: existing.data.displayName,
       notes: existing.data.notes ?? '',
       enabled: existing.data.enabled,
+      writesEnabled: existing.data.writesEnabled,
     });
   } else if (!tenantId && hydratedFor !== '') {
     setHydratedFor('');
@@ -72,6 +75,7 @@ export function TenantForm({ tenantId, onDone }: Props) {
       displayName: form.displayName,
       notes: form.notes ? form.notes : null,
       enabled: form.enabled,
+      writesEnabled: form.writesEnabled,
     });
   };
 
@@ -121,6 +125,14 @@ export function TenantForm({ tenantId, onDone }: Props) {
               onChange={(e) => setForm((f) => ({ ...f, enabled: e.target.checked }))}
             />
             Enabled
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={form.writesEnabled}
+              onChange={(e) => setForm((f) => ({ ...f, writesEnabled: e.target.checked }))}
+            />
+            Writes enabled (allow write-path MCP tools)
           </label>
 
           {upsert.error && (
