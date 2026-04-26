@@ -1,0 +1,86 @@
+# Lakeflow Job that streams mcp_call_log rows from the Lakebase OLTP
+# table into the UC Delta `mcp_call_log` table created by the UC setup
+# job. Runs every 15 minutes by default.
+#
+# Watermark is read from the Delta target on each run — no shared
+# state, no separate watermark table. Each batch is bounded by
+# `batch_size` to keep job runtimes predictable.
+
+resources:
+  jobs:
+    intacct_mcp_call_log_sync:
+      name: Intacct MCP Call Log Sync [${bundle.target}]
+
+      description: >
+        Incremental Lakebase → UC Delta copy for mcp_call_log. Reads
+        max(created_at) from the Delta target on each run, fetches
+        rows newer than that from Lakebase OLTP (capped at batch_size),
+        and appends them to UC. Idempotent and re-runnable; on failure
+        the next run picks up from the same watermark.
+
+      parameters:
+        - name: catalog_use
+          default: ${resources.schemas.intacct_schema.catalog_name}
+        - name: schema_use
+          default: ${resources.schemas.intacct_schema.name}
+        - name: lakebase_project_id
+          default: ${var.lakebase_project_id}
+        - name: lakebase_database
+          default: ${var.postgres_database}
+        - name: batch_size
+          default: "5000"
+
+      tasks:
+        - task_key: sync
+          notebook_task:
+            notebook_path: ../src/sync/mcp_call_log_sync.ipynb
+            source: WORKSPACE
+          environment_key: serverless
+
+      environments:
+        - environment_key: serverless
+          spec:
+            client: "${var.serverless_environment_version}"
+            dependencies:
+              # Required for the OAuth-rotated Lakebase Postgres connection.
+              - psycopg[binary]>=3.2
+
+      max_concurrent_runs: 1
+      timeout_seconds: 1800
+
+      schedule:
+        # Every 15 minutes, paused by default. Toggle pause_status to
+        # UNPAUSED via the UI or `databricks jobs update` once the
+        # downstream Delta consumers are wired up.
+        quartz_cron_expression: "0 0/15 * * * ?"
+        timezone_id: "America/Los_Angeles"
+        pause_status: "PAUSED"
+
+      tags:
+        component: sync
+        resource_type: lakebase_to_uc
+
+# Target-specific overrides
+targets:
+
+  hls_fde:
+    resources:
+      jobs:
+        intacct_mcp_call_log_sync:
+          permissions:
+            - user_name: matthew.giglia@databricks.com
+              level: CAN_MANAGE
+            - service_principal_name: ${var.higher_level_service_principal}
+              level: CAN_MANAGE
+            - group_name: users
+              level: CAN_VIEW
+
+  prod:
+    resources:
+      jobs:
+        intacct_mcp_call_log_sync:
+          permissions:
+            - user_name: matthew.giglia@databricks.com
+              level: CAN_MANAGE
+            - service_principal_name: ${var.higher_level_service_principal}
+              level: CAN_MANAGE

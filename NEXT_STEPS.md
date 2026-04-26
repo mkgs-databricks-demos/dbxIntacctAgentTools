@@ -57,10 +57,8 @@ Each README documents:
 **Why:** the table is the analytical entry-point for replay/debugging; the volume alone needs `LIST` to discover captures.
 **Effort:** small — Statement Execution API call from the writer. AppKit's `analytics` plugin is read-only, so use the Databricks SDK directly.
 
-### 2.2 Stream `mcp_call_log` from Lakebase → UC Delta
-**What:** Lakeflow Job that reads from Lakebase OLTP and writes to the UC Delta `mcp_call_log` table created in `target-tables-ddl.sql`.
-**Why:** the Lakebase table is for hot-path admin reads; analytical queries (top tools, p95 latency, error rates by tenant) belong on Delta.
-**Effort:** medium — needs incremental loading via `created_at` watermark.
+### 2.2 Stream `mcp_call_log` from Lakebase → UC Delta — ✅ done in #15
+**What done:** new `intacct_mcp_call_log_sync` Lakeflow Job in the infra bundle. Watermark-driven incremental copy: reads `MAX(created_at)` from the UC Delta target, fetches Lakebase rows newer than that (capped by `batch_size=5000`), parses `tool_input` JSONB through `parse_json`, appends to Delta. Schedule cron `0 0/15 * * * ?` PAUSED by default — flip via UI when downstream consumers are wired. Connects to Lakebase via OAuth-rotated Postgres using `psycopg`. Side-fix: bundle validate was failing on the existing UC setup job because `target-tables-ddl.sql` lacked the `-- Databricks notebook source` header; added it. `databricks bundle validate --target dev` now passes.
 
 ### 2.3 Verify OTel telemetry export
 **What:** the `intacct_mcp.app.yml` declares `telemetry_export_destinations` for `app_otel_logs`/`_traces`/`_metrics`. After first deploy, confirm the three Delta tables get populated and add a default Lakeview dashboard.
