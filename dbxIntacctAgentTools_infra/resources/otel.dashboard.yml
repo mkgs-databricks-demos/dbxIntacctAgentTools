@@ -1,0 +1,45 @@
+# Lakeview dashboard for the Intacct MCP app's OpenTelemetry export.
+#
+# The MCP app declares `telemetry_export_destinations` in
+# resources/intacct_mcp.app.yml, which streams traces/logs/metrics
+# from the running app into three UC Delta tables:
+#   {catalog}.{schema}.{prefix}_otel_logs
+#   {catalog}.{schema}.{prefix}_otel_traces
+#   {catalog}.{schema}.{prefix}_otel_metrics
+#
+# This dashboard renders against those tables and starts populating
+# the moment the app emits its first trace. Until then, widgets show
+# "no data" — that's the gate for §2.3 verification.
+
+resources:
+  dashboards:
+    intacct_otel_dashboard:
+      display_name: Intacct MCP — OpenTelemetry [${bundle.target}]
+      warehouse_id: ${resources.sql_warehouses.infra_warehouse.id}
+      parent_path: /Workspace/Users/${var.run_as_user}
+      file_path: ../src/dashboards/otel.lvdash.json
+
+# Target overrides — production targets share the dashboard with users
+targets:
+
+  hls_fde:
+    resources:
+      dashboards:
+        intacct_otel_dashboard:
+          parent_path: /Workspace/.bundle/${bundle.name}/${bundle.target}/dashboards
+          permissions:
+            - user_name: matthew.giglia@databricks.com
+              level: CAN_MANAGE
+            - service_principal_name: ${var.higher_level_service_principal}
+              level: CAN_MANAGE
+            - group_name: users
+              level: CAN_READ
+
+  prod:
+    resources:
+      dashboards:
+        intacct_otel_dashboard:
+          parent_path: /Workspace/.bundle/${bundle.name}/${bundle.target}/dashboards
+          permissions:
+            - user_name: matthew.giglia@databricks.com
+              level: CAN_MANAGE

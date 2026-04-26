@@ -1,0 +1,266 @@
+{
+  "displayName": "Intacct MCP — OpenTelemetry",
+  "datasets": [
+    {
+      "name": "traces",
+      "displayName": "Traces (last 24h)",
+      "queryLines": [
+        "SELECT\n",
+        "  service_name,\n",
+        "  span_name,\n",
+        "  status_code,\n",
+        "  DATE_TRUNC('minute', start_time) AS minute,\n",
+        "  COUNT(*) AS span_count,\n",
+        "  AVG(duration_nano / 1e6) AS avg_duration_ms,\n",
+        "  PERCENTILE(duration_nano / 1e6, 0.5) AS p50_duration_ms,\n",
+        "  PERCENTILE(duration_nano / 1e6, 0.95) AS p95_duration_ms,\n",
+        "  PERCENTILE(duration_nano / 1e6, 0.99) AS p99_duration_ms\n",
+        "FROM IDENTIFIER(:traces_table)\n",
+        "WHERE start_time >= NOW() - INTERVAL 24 HOURS\n",
+        "GROUP BY service_name, span_name, status_code, DATE_TRUNC('minute', start_time)"
+      ],
+      "parameters": [
+        {
+          "displayName": "traces_table",
+          "keyword": "traces_table",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [{ "value": "hls_fde_dev.intacct.app_otel_traces" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "errors",
+      "displayName": "Recent errors (last 1h)",
+      "queryLines": [
+        "SELECT\n",
+        "  observed_time,\n",
+        "  service_name,\n",
+        "  severity_text,\n",
+        "  body,\n",
+        "  attributes\n",
+        "FROM IDENTIFIER(:logs_table)\n",
+        "WHERE observed_time >= NOW() - INTERVAL 1 HOUR\n",
+        "  AND severity_number >= 17  -- ERROR and above\n",
+        "ORDER BY observed_time DESC\n",
+        "LIMIT 100"
+      ],
+      "parameters": [
+        {
+          "displayName": "logs_table",
+          "keyword": "logs_table",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [{ "value": "hls_fde_dev.intacct.app_otel_logs" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "metrics_summary",
+      "displayName": "Metrics (last 24h)",
+      "queryLines": [
+        "SELECT\n",
+        "  metric_name,\n",
+        "  COUNT(*) AS sample_count,\n",
+        "  MIN(time) AS earliest,\n",
+        "  MAX(time) AS latest\n",
+        "FROM IDENTIFIER(:metrics_table)\n",
+        "WHERE time >= NOW() - INTERVAL 24 HOURS\n",
+        "GROUP BY metric_name\n",
+        "ORDER BY sample_count DESC"
+      ],
+      "parameters": [
+        {
+          "displayName": "metrics_table",
+          "keyword": "metrics_table",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [{ "value": "hls_fde_dev.intacct.app_otel_metrics" }]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "name": "overview",
+      "displayName": "Overview",
+      "layout": [
+        {
+          "widget": {
+            "name": "title",
+            "textbox_spec": "# Intacct MCP — OpenTelemetry\n\nLive view of the `mcp-intacct` app's traces, logs, and metrics.\n\n**Verification (§2.3):** After the app's first cold-start, all three datasets below should populate within ~60s. If they're empty, see `dbxIntacctAgentTools_infra/README.md → OTel verification`."
+          },
+          "position": { "x": 0, "y": 0, "width": 6, "height": 2 }
+        },
+        {
+          "widget": {
+            "name": "span_count",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "traces",
+                  "fields": [
+                    { "name": "minute", "expression": "`minute`" },
+                    { "name": "span_count", "expression": "SUM(`span_count`)" }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": { "fieldName": "minute", "scale": { "type": "temporal" }, "displayName": "Minute" },
+                "y": { "fieldName": "span_count", "scale": { "type": "quantitative" }, "displayName": "Spans" }
+              },
+              "frame": { "showTitle": true, "title": "Spans per minute" }
+            }
+          },
+          "position": { "x": 0, "y": 2, "width": 3, "height": 4 }
+        },
+        {
+          "widget": {
+            "name": "p95_latency",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "traces",
+                  "fields": [
+                    { "name": "minute", "expression": "`minute`" },
+                    { "name": "p50_duration_ms", "expression": "AVG(`p50_duration_ms`)" },
+                    { "name": "p95_duration_ms", "expression": "AVG(`p95_duration_ms`)" },
+                    { "name": "p99_duration_ms", "expression": "AVG(`p99_duration_ms`)" }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": { "fieldName": "minute", "scale": { "type": "temporal" }, "displayName": "Minute" },
+                "y": { "fieldName": "p95_duration_ms", "scale": { "type": "quantitative" }, "displayName": "Latency (ms)" }
+              },
+              "frame": { "showTitle": true, "title": "Latency p50 / p95 / p99 (ms)" }
+            }
+          },
+          "position": { "x": 3, "y": 2, "width": 3, "height": 4 }
+        },
+        {
+          "widget": {
+            "name": "top_spans",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "traces",
+                  "fields": [
+                    { "name": "span_name", "expression": "`span_name`" },
+                    { "name": "service_name", "expression": "`service_name`" },
+                    { "name": "span_count", "expression": "SUM(`span_count`)" }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  { "fieldName": "span_name", "displayName": "Span" },
+                  { "fieldName": "service_name", "displayName": "Service" },
+                  { "fieldName": "span_count", "displayName": "Count", "type": "integer" }
+                ]
+              },
+              "frame": { "showTitle": true, "title": "Top spans (24h)" }
+            }
+          },
+          "position": { "x": 0, "y": 6, "width": 6, "height": 4 }
+        },
+        {
+          "widget": {
+            "name": "errors_table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "errors",
+                  "fields": [
+                    { "name": "observed_time", "expression": "`observed_time`" },
+                    { "name": "severity_text", "expression": "`severity_text`" },
+                    { "name": "body", "expression": "`body`" }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  { "fieldName": "observed_time", "displayName": "When", "type": "datetime" },
+                  { "fieldName": "severity_text", "displayName": "Severity" },
+                  { "fieldName": "body", "displayName": "Message" }
+                ]
+              },
+              "frame": { "showTitle": true, "title": "Recent errors (1h)" }
+            }
+          },
+          "position": { "x": 0, "y": 10, "width": 6, "height": 4 }
+        },
+        {
+          "widget": {
+            "name": "metrics_table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "metrics_summary",
+                  "fields": [
+                    { "name": "metric_name", "expression": "`metric_name`" },
+                    { "name": "sample_count", "expression": "`sample_count`" },
+                    { "name": "earliest", "expression": "`earliest`" },
+                    { "name": "latest", "expression": "`latest`" }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  { "fieldName": "metric_name", "displayName": "Metric" },
+                  { "fieldName": "sample_count", "displayName": "Samples", "type": "integer" },
+                  { "fieldName": "earliest", "displayName": "First seen", "type": "datetime" },
+                  { "fieldName": "latest", "displayName": "Last seen", "type": "datetime" }
+                ]
+              },
+              "frame": { "showTitle": true, "title": "Metrics summary (24h)" }
+            }
+          },
+          "position": { "x": 0, "y": 14, "width": 6, "height": 4 }
+        }
+      ]
+    }
+  ]
+}
