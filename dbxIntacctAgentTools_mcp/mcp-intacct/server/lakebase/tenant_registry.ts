@@ -4,7 +4,7 @@
  * The registry is the source of truth for:
  *   - whether a tenant_id is valid (loadTenant() consults it)
  *   - the secret-scope key names that hold the tenant's WS user creds
- *   - admin metadata (display name, notes, enabled flag)
+ *   - admin metadata (display name, notes, enabled flag, writes_enabled flag)
  *
  * A short in-memory cache (60s TTL) collapses repeated reads from the
  * MCP hot path; the cache is keyed on tenant_id and invalidated by
@@ -21,6 +21,8 @@ export interface TenantRecord {
   userSecretKey: string;
   passwordSecretKey: string;
   enabled: boolean;
+  /** When false, write-path MCP tools throw before hitting Sage. */
+  writesEnabled: boolean;
   notes: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -33,6 +35,7 @@ export interface TenantUpsertInput {
   userSecretKey?: string;
   passwordSecretKey?: string;
   enabled?: boolean;
+  writesEnabled?: boolean;
   notes?: string | null;
 }
 
@@ -50,10 +53,16 @@ interface RegistryRow {
   user_secret_key: string;
   password_secret_key: string;
   enabled: boolean;
+  writes_enabled: boolean;
   notes: string | null;
   created_at: Date;
   updated_at: Date;
 }
+
+const SELECT_COLUMNS = `
+  tenant_id, company_id, display_name, user_secret_key, password_secret_key,
+  enabled, writes_enabled, notes, created_at, updated_at
+`;
 
 export class TenantRegistry {
   private readonly pool: Pool;
@@ -74,8 +83,7 @@ export class TenantRegistry {
     }
 
     const result = await this.pool.query<RegistryRow>(
-      `SELECT tenant_id, company_id, display_name, user_secret_key, password_secret_key,
-              enabled, notes, created_at, updated_at
+      `SELECT ${SELECT_COLUMNS}
          FROM tenant_registry
         WHERE tenant_id = $1`,
       [tenantId],
@@ -98,11 +106,26 @@ export class TenantRegistry {
     return record;
   }
 
+  /**
+   * Like `require()`, but additionally requires `writes_enabled=true`.
+   * Used by write-path MCP tools to gate Sage REST mutations.
+   */
+  async requireWritable(tenantId: string): Promise<TenantRecord> {
+    const record = await this.require(tenantId);
+    if (!record.writesEnabled) {
+      throw new Error(
+        `Tenant '${tenantId}' has writes_enabled=false; ` +
+          `write-path MCP tools are blocked for this tenant. ` +
+          `An admin can enable writes via the admin UI or by calling tenants.upsert.`,
+      );
+    }
+    return record;
+  }
+
   /** List every tenant. Bypasses the cache. */
   async list(): Promise<TenantRecord[]> {
     const result = await this.pool.query<RegistryRow>(
-      `SELECT tenant_id, company_id, display_name, user_secret_key, password_secret_key,
-              enabled, notes, created_at, updated_at
+      `SELECT ${SELECT_COLUMNS}
          FROM tenant_registry
         ORDER BY display_name`,
     );
@@ -114,23 +137,24 @@ export class TenantRegistry {
     const userKey = input.userSecretKey ?? `intacct_user_${input.companyId}`;
     const passwordKey = input.passwordSecretKey ?? `intacct_password_${input.companyId}`;
     const enabled = input.enabled ?? true;
+    const writesEnabled = input.writesEnabled ?? false;
 
     const result = await this.pool.query<RegistryRow>(
       `
       INSERT INTO tenant_registry
         (tenant_id, company_id, display_name, user_secret_key,
-         password_secret_key, enabled, notes, created_at, updated_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
+         password_secret_key, enabled, writes_enabled, notes, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
       ON CONFLICT (tenant_id) DO UPDATE SET
         company_id          = EXCLUDED.company_id,
         display_name        = EXCLUDED.display_name,
         user_secret_key     = EXCLUDED.user_secret_key,
         password_secret_key = EXCLUDED.password_secret_key,
         enabled             = EXCLUDED.enabled,
+        writes_enabled      = EXCLUDED.writes_enabled,
         notes               = EXCLUDED.notes,
         updated_at          = NOW()
-      RETURNING tenant_id, company_id, display_name, user_secret_key,
-                password_secret_key, enabled, notes, created_at, updated_at
+      RETURNING ${SELECT_COLUMNS}
       `,
       [
         input.tenantId,
@@ -139,6 +163,7 @@ export class TenantRegistry {
         userKey,
         passwordKey,
         enabled,
+        writesEnabled,
         input.notes ?? null,
       ],
     );
@@ -156,8 +181,7 @@ export class TenantRegistry {
       `UPDATE tenant_registry
           SET enabled = false, updated_at = NOW()
         WHERE tenant_id = $1
-       RETURNING tenant_id, company_id, display_name, user_secret_key,
-                 password_secret_key, enabled, notes, created_at, updated_at`,
+       RETURNING ${SELECT_COLUMNS}`,
       [tenantId],
     );
     this.cache.delete(tenantId);
@@ -178,6 +202,7 @@ function rowToRecord(row: RegistryRow): TenantRecord {
     userSecretKey: row.user_secret_key,
     passwordSecretKey: row.password_secret_key,
     enabled: row.enabled,
+    writesEnabled: row.writes_enabled,
     notes: row.notes,
     createdAt: row.created_at,
     updatedAt: row.updated_at,

@@ -88,10 +88,8 @@ Each README documents:
 **Effort:** small (just runtime verification).
 **Prereq:** Sage sandbox + credentials.
 
-### 3.3 Tenant write allow-list flag
-**What:** add `writes_enabled` boolean to `tenant_registry`; admin UI toggles it; write-path MCP tools (§1.3) reject if false.
-**Why:** safer default — read-only unless explicitly enabled per tenant.
-**Effort:** small (schema migration + check).
+### 3.3 Tenant write allow-list flag — ✅ done in #12
+**What done:** `tenant_registry` gained a `writes_enabled BOOLEAN NOT NULL DEFAULT false` column (idempotent ALTER TABLE migration). `TenantRegistry.requireWritable(tenantId)` throws unless the flag is true. `TenantRecord` and `TenantUpsertInput` carry the flag through to the tRPC layer. Admin UI: TenantList shows a `writable | read-only` badge; TenantForm has a "Writes enabled" checkbox (default unchecked = safe). Tests assert default-false on upsert, propagation when set, and `requireWritable` throws on missing/disabled/non-writable. §1.3 write-path MCP tools will call `registry.requireWritable()` before invoking Sage.
 
 ---
 

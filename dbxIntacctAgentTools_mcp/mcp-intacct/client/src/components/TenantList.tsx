@@ -47,6 +47,7 @@ export function TenantList({
                 <th className="py-2">Tenant</th>
                 <th className="py-2">Company</th>
                 <th className="py-2">Status</th>
+                <th className="py-2">Writes</th>
                 <th className="py-2">Updated</th>
                 <th className="py-2 text-right">Actions</th>
               </tr>
@@ -59,6 +60,11 @@ export function TenantList({
                   <td className="py-2">
                     <Badge variant={t.enabled ? 'default' : 'secondary'}>
                       {t.enabled ? 'enabled' : 'disabled'}
+                    </Badge>
+                  </td>
+                  <td className="py-2">
+                    <Badge variant={t.writesEnabled ? 'default' : 'outline'}>
+                      {t.writesEnabled ? 'writable' : 'read-only'}
                     </Badge>
                   </td>
                   <td className="py-2 text-muted-foreground">

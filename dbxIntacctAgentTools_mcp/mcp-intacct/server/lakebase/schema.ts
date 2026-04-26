@@ -27,10 +27,17 @@ const STATEMENTS = [
     user_secret_key      TEXT NOT NULL,
     password_secret_key  TEXT NOT NULL,
     enabled              BOOLEAN NOT NULL DEFAULT true,
+    writes_enabled       BOOLEAN NOT NULL DEFAULT false,
     notes                TEXT,
     created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
   )
+  `,
+  // Migration: add writes_enabled column to existing tenant_registry tables.
+  // Postgres ALTER TABLE ADD COLUMN IF NOT EXISTS is idempotent.
+  `
+  ALTER TABLE tenant_registry
+    ADD COLUMN IF NOT EXISTS writes_enabled BOOLEAN NOT NULL DEFAULT false
   `,
   `CREATE INDEX IF NOT EXISTS tenant_registry_company_id_idx ON tenant_registry (company_id)`,
   `CREATE INDEX IF NOT EXISTS tenant_registry_enabled_idx    ON tenant_registry (enabled)`,
