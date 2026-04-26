@@ -1,22 +1,23 @@
 /**
  * tRPC router for admin operations.
  *
- * Endpoints:
- *   tenants.list       — list every tenant
- *   tenants.get        — fetch one tenant by id
- *   tenants.upsert     — insert/update a tenant
- *   tenants.disable    — soft-delete a tenant
- *   mcpCallLog.recent  — recent MCP tool invocations (admin audit)
+ * Procedure hierarchy:
+ *   publicProcedure  — anyone with app access can read
+ *   adminProcedure   — only allow-listed users can mutate
  *
- * SQL SELECTs are deliberately exposed via tRPC here (rather than the
- * AppKit analytics plugin) because the data lives in Lakebase OLTP, not
- * the SQL warehouse. Analytics-plugin SQL files target the warehouse;
- * Lakebase queries go through tRPC.
+ * Endpoints:
+ *   whoami             — current user's identity + admin flag (public)
+ *   tenants.list       — list every tenant (public)
+ *   tenants.get        — fetch one tenant by id (public)
+ *   tenants.upsert     — insert/update a tenant (admin)
+ *   tenants.disable    — soft-delete a tenant (admin)
+ *   mcpCallLog.recent  — recent MCP tool invocations (public)
  */
 
 import { initTRPC } from '@trpc/server';
 import superjson from 'superjson';
 import { z } from 'zod';
+import { assertAdmin } from './auth.js';
 import type { TrpcContext } from './context.js';
 
 const t = initTRPC.context<TrpcContext>().create({
@@ -24,6 +25,12 @@ const t = initTRPC.context<TrpcContext>().create({
 });
 
 const publicProcedure = t.procedure;
+
+/** Admin-only procedure: throws UNAUTHORIZED unless ctx.identity.isAdmin. */
+const adminProcedure = t.procedure.use(({ ctx, next }) => {
+  assertAdmin(ctx.identity);
+  return next({ ctx });
+});
 
 const tenantUpsertInput = z.object({
   tenantId: z.string().min(1).max(64),
@@ -36,6 +43,8 @@ const tenantUpsertInput = z.object({
 });
 
 export const appRouter = t.router({
+  whoami: publicProcedure.query(({ ctx }) => ctx.identity),
+
   tenants: t.router({
     list: publicProcedure.query(async ({ ctx }) => {
       return ctx.lakebase.registry.list();
@@ -47,11 +56,11 @@ export const appRouter = t.router({
         return ctx.lakebase.registry.get(input.tenantId);
       }),
 
-    upsert: publicProcedure.input(tenantUpsertInput).mutation(async ({ ctx, input }) => {
+    upsert: adminProcedure.input(tenantUpsertInput).mutation(async ({ ctx, input }) => {
       return ctx.lakebase.registry.upsert(input);
     }),
 
-    disable: publicProcedure
+    disable: adminProcedure
       .input(z.object({ tenantId: z.string() }))
       .mutation(async ({ ctx, input }) => {
         return ctx.lakebase.registry.disable(input.tenantId);

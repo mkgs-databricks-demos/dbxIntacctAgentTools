@@ -20,6 +20,10 @@
 #   INTACCT_SENDER_ID           — Sage Intacct ISV Sender ID
 #   INTACCT_SENDER_PASSWORD     — Sage Intacct ISV Sender password
 #   INTACCT_SECRET_SCOPE        — secret scope name (for per-tenant credential resolution at request time)
+#   INTACCT_MCP_ADMIN_USERS     — comma-separated emails of users allowed to mutate the
+#                                 tenant registry. Read by the tRPC adminProcedure.
+#                                 Set per-target via the bundle databricks.yml. In dev only,
+#                                 the value '*' allows everyone (escape hatch for local work).
 
 command: ['npm', 'run', 'start']
 env:
@@ -46,3 +50,8 @@ env:
     valueFrom: intacct-sender-id
   - name: INTACCT_SENDER_PASSWORD
     valueFrom: intacct-sender-password
+
+  # Admin allow-list — populate via app resource override or bundle var.
+  # Empty string = no admins (read-only mode); '*' = open in dev only.
+  - name: INTACCT_MCP_ADMIN_USERS
+    value: ''

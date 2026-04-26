@@ -52,9 +52,10 @@ test('smoke test - app loads and displays admin tenants page', async ({ page }) 
   // Top-level nav (Tenants / Recent calls)
   await expect(page.getByRole('link', { name: 'Tenants' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Recent calls' })).toBeVisible();
-  // Tenants page heading + add button
+  // Identity pill (admin or viewer)
+  await expect(page.getByTestId('whoami-pill')).toBeVisible();
+  // Tenants page heading
   await expect(page.getByRole('heading', { name: 'Tenants', level: 2 })).toBeVisible();
-  await expect(page.getByRole('button', { name: '+ Add tenant' })).toBeVisible();
 });
 
 test('smoke test - recent calls page loads', async ({ page }) => {
