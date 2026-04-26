@@ -37,11 +37,9 @@ Each README documents:
 ### 1.2 Build out the AP / Cash MCP tools — ✅ done in #10
 **What done:** four new tools — `list_vendors`, `list_bills`, `list_payments`, `get_cash_position` — added to `server/mcp/tools/{accounts_payable,cash}.ts`. Surface goes from 6 → 10 tools across 4 domains. Backed by `IntacctClient.{listVendors,listBills,listPayments,getCashPosition}` with full filter forwarding and pagination. Tests in `tests/intacct-client-ap-cash.test.ts` (7 specs, including a fix that threads a single mocked `fetch` through both auth and REST calls).
 
-### 1.3 Add write-path MCP tools
-**What:** `post_journal_entry`, `record_adjustment`, `apply_payment` — guarded by an explicit allow-list on the tenant registry (`writes_enabled` flag), and by tRPC-level auth (see §3.1).
-**Why:** unlocks the CAAS Phase 2 use case (extract → land in Sage). Big value, but biggest blast radius if it goes wrong.
-**Effort:** medium — needs idempotency keys and rollback semantics.
-**Prereq:** §3.1 auth.
+### 1.3 Add write-path MCP tools — ✅ done in #14
+**What done:** three write tools landed — `post_journal_entry`, `record_adjustment`, `apply_payment`. All gated by `tenant_registry.writes_enabled` via a new `runTenantCall({ requireWrites: true }, ...)` option that calls `registry.requireWritable()` before invoking Sage. Each tool accepts an optional `idempotency_key` argument forwarded as the `Idempotency-Key` HTTP header so retries don't double-post. `IntacctClient.request()` extended to thread the header through. Tool surface now 13 across 5 domains.
+**Remaining:** rollback semantics on partial-failure batch posts (e.g. journal entry that posts but Sage 5xxs after) — defer until a real Sage sandbox surfaces this scenario.
 
 ### 1.4 Consume the official Sage Intacct MCP server
 **What:** Sage shipped their own MCP at `developer.sage.com/intacct/mcps/intacct-mcp/...` in Nov 2025. Evaluate whether this server should call it (as a Databricks-side façade), and which procedures we'd thin out.

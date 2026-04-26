@@ -88,7 +88,12 @@ export class IntacctClient {
   async request<T = Record<string, unknown>>(
     method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
     path: string,
-    opts: { params?: Record<string, string | number | boolean | undefined>; body?: unknown } = {},
+    opts: {
+      params?: Record<string, string | number | boolean | undefined>;
+      body?: unknown;
+      /** Forwarded as the `Idempotency-Key` HTTP header on writes. */
+      idempotencyKey?: string;
+    } = {},
   ): Promise<T> {
     const url = new URL(`${this.baseUrl}/${path.replace(/^\/+/, '')}`);
     if (opts.params) {
@@ -103,6 +108,7 @@ export class IntacctClient {
     const headers = await this.auth.authorize({
       'X-Intacct-Request-Id': requestId,
       ...(opts.body ? { 'Content-Type': 'application/json' } : {}),
+      ...(opts.idempotencyKey ? { 'Idempotency-Key': opts.idempotencyKey } : {}),
     });
 
     const controller = new AbortController();
@@ -353,6 +359,78 @@ export class IntacctClient {
       'GET',
       'objects/cash-management/cash-position',
       { params },
+    );
+  }
+
+  // ── Write-path methods ──────────────────────────────────────────────
+  // All writes accept an optional idempotency_key — forwarded as the
+  // `Idempotency-Key` HTTP header so retries against Sage are safe.
+
+  /**
+   * Post a journal entry. The body shape mirrors Sage REST's expected
+   * payload: { posting_date, description?, lines: [{ account_no, amount,
+   * debit_credit, memo?, dimensions? }] }.
+   */
+  async postJournalEntry(
+    entry: {
+      posting_date: string;
+      description?: string;
+      lines: Array<{
+        account_no: string;
+        amount: number;
+        debit_credit: 'debit' | 'credit';
+        memo?: string;
+        dimensions?: Record<string, string | number>;
+      }>;
+    },
+    opts: { idempotencyKey?: string } = {},
+  ): Promise<Record<string, unknown>> {
+    return this.request<Record<string, unknown>>(
+      'POST',
+      'objects/general-ledger/journal-entry',
+      { body: entry, idempotencyKey: opts.idempotencyKey },
+    );
+  }
+
+  /** Record an AR adjustment against a specific charge line. */
+  async recordAdjustment(
+    args: {
+      charge_line_id: string;
+      adjustment_date: string;
+      adjustment_type: string;
+      adjustment_reason_code?: string;
+      amount: number;
+      memo?: string;
+    },
+    opts: { idempotencyKey?: string } = {},
+  ): Promise<Record<string, unknown>> {
+    return this.request<Record<string, unknown>>(
+      'POST',
+      'objects/accounts-receivable/adjustment',
+      { body: args, idempotencyKey: opts.idempotencyKey },
+    );
+  }
+
+  /**
+   * Apply a payment to one or more open AR invoices. Accepts a payment
+   * with line-level applications (invoice_id + amount per line).
+   */
+  async applyPayment(
+    args: {
+      payer_id: string;
+      payment_date: string;
+      payment_method: string;
+      account_id: string;
+      amount: number;
+      applications: Array<{ invoice_id: string; amount: number }>;
+      memo?: string;
+    },
+    opts: { idempotencyKey?: string } = {},
+  ): Promise<Record<string, unknown>> {
+    return this.request<Record<string, unknown>>(
+      'POST',
+      'objects/accounts-receivable/payment',
+      { body: args, idempotencyKey: opts.idempotencyKey },
     );
   }
 }

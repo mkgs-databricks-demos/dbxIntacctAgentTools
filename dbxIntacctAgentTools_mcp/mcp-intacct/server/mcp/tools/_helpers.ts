@@ -30,6 +30,12 @@ interface RunOptions {
   toolInput: Record<string, unknown>;
   /** When provided, lets the caller skip the implicit tenant_id parsing. */
   tenantId?: string;
+  /**
+   * When true, calls registry.requireWritable(tenantId) before resolving
+   * the tenant client. Throws (and produces a structured error result)
+   * if the tenant has writes_enabled=false. Defaults to false.
+   */
+  requireWrites?: boolean;
 }
 
 /**
@@ -46,6 +52,9 @@ export async function runTenantCall<T>(
 
   let result: ToolTextResult;
   try {
+    if (opts.requireWrites) {
+      await getLakebase().registry.requireWritable(tenantId);
+    }
     const client = await getTenantClient(tenantId);
     const value = await fn(client);
     result = formatJson(value);

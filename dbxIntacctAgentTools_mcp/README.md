@@ -69,8 +69,11 @@ The orchestrating `deploy.sh` at the project root handles validate → infra rea
 | AP | `list_bills` | Wired to `IntacctClient.listBills` |
 | Cash | `list_payments` | Wired to `IntacctClient.listPayments` |
 | Cash | `get_cash_position` | Wired to `IntacctClient.getCashPosition` |
+| Writes | `post_journal_entry` | Wired to `IntacctClient.postJournalEntry`. **Gated by `writes_enabled`.** |
+| Writes | `record_adjustment` | Wired to `IntacctClient.recordAdjustment`. **Gated by `writes_enabled`.** |
+| Writes | `apply_payment` | Wired to `IntacctClient.applyPayment`. **Gated by `writes_enabled`.** |
 
-All ten tools resolve per-tenant credentials via the registry, persist a row to `mcp_call_log`, and capture raw Sage responses to the `raw_responses` UC Volume. Return values are typed as `Record<string, unknown>` until [§1.1](../NEXT_STEPS.md) lands typed signatures.
+All thirteen tools resolve per-tenant credentials via the registry, persist a row to `mcp_call_log`, and capture raw Sage responses to the `raw_responses` UC Volume. Write tools additionally call `registry.requireWritable()` before invoking Sage and accept an optional `idempotency_key` argument that's forwarded as the `Idempotency-Key` HTTP header. Return values are typed as `Record<string, unknown>` until [§1.1](../NEXT_STEPS.md) lands typed signatures.
 
 Tool stubs accept the proper `inputSchema` shape and return placeholder text. Wire each one to the TypeScript Sage Intacct client (`server/intacct/`) — generated from the OpenAPI spec — to ship a working tool.
 
