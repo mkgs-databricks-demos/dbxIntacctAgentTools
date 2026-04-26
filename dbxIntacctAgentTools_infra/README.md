@@ -46,3 +46,20 @@ databricks secrets put-secret $SCOPE intacct_sender_password --string-value "<pw
 databricks secrets put-secret $SCOPE intacct_user_<company_id>     --string-value "<ws-user>"
 databricks secrets put-secret $SCOPE intacct_password_<company_id> --string-value "<ws-pwd>"
 ```
+
+## App admin allow-list
+
+The MCP app gates registry mutations (`tenants.upsert`, `tenants.disable`) behind
+`INTACCT_MCP_ADMIN_USERS` — a comma-separated list of user emails that the
+`x-forwarded-user` header must match (case-insensitive). Set this on the app
+resource in `dbxIntacctAgentTools_mcp/resources/intacct_mcp.app.yml` per target,
+or as a runtime env override:
+
+```bash
+databricks apps update mcp-intacct-dev \
+  --custom-env-vars INTACCT_MCP_ADMIN_USERS=alice@databricks.com,bob@databricks.com
+```
+
+In `NODE_ENV=development` only, the value `*` opens mutations to every signed-in
+user (escape hatch for local work). Production with an empty value puts the app
+in read-only mode (every mutation returns `UNAUTHORIZED`).

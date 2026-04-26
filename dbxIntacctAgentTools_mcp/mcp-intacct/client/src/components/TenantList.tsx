@@ -9,7 +9,13 @@ import {
 } from '@databricks/appkit-ui/react';
 import { trpc } from '../lib/trpc';
 
-export function TenantList({ onEdit }: { onEdit: (tenantId: string) => void }) {
+export function TenantList({
+  onEdit,
+  canEdit,
+}: {
+  onEdit: (tenantId: string) => void;
+  canEdit: boolean;
+}) {
   const utils = trpc.useUtils();
   const tenants = trpc.tenants.list.useQuery();
   const disable = trpc.tenants.disable.useMutation({
@@ -59,18 +65,24 @@ export function TenantList({ onEdit }: { onEdit: (tenantId: string) => void }) {
                     {new Date(t.updatedAt).toLocaleString()}
                   </td>
                   <td className="py-2 text-right space-x-2">
-                    <Button size="sm" variant="outline" onClick={() => onEdit(t.tenantId)}>
-                      Edit
-                    </Button>
-                    {t.enabled && (
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => disable.mutate({ tenantId: t.tenantId })}
-                        disabled={disable.isPending}
-                      >
-                        Disable
-                      </Button>
+                    {canEdit ? (
+                      <>
+                        <Button size="sm" variant="outline" onClick={() => onEdit(t.tenantId)}>
+                          Edit
+                        </Button>
+                        {t.enabled && (
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => disable.mutate({ tenantId: t.tenantId })}
+                            disabled={disable.isPending}
+                          >
+                            Disable
+                          </Button>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">read-only</span>
                     )}
                   </td>
                 </tr>

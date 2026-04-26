@@ -79,11 +79,8 @@ Each README documents:
 
 ## 3. Auth / security hardening
 
-### 3.1 OBO auth on tRPC procedures
-**What:** today every tRPC procedure is `publicProcedure`. Use `getUserContext()` from AppKit + a workspace-admin allow-list to gate `tenants.upsert` / `tenants.disable` / future write-path MCP tools.
-**Why:** the registry currently lets any app user mutate any tenant. Should require explicit admin permission.
-**Effort:** medium.
-**Prereq:** none — AppKit ships OBO.
+### 3.1 OBO auth on tRPC procedures — ✅ done in #11
+**What done:** `tenants.upsert` and `tenants.disable` are now wrapped in `adminProcedure`, which throws `UNAUTHORIZED` unless the request's `x-forwarded-user` header matches the comma-separated allow-list in `INTACCT_MCP_ADMIN_USERS`. New `whoami` query exposes `{ userId, isAdmin, isAuthenticated }`. The React UI hides Edit/Disable buttons and the Add-tenant button for non-admins, shows a role badge in the header, and a "read-only" notice on the Tenants page. Dev-mode escape hatches: `MCP_DEV_USER` env var supplies a fallback identity, and `INTACCT_MCP_ADMIN_USERS=*` is honored only when `NODE_ENV=development`.
 
 ### 3.2 Validate the Sage Intacct REST auth flow against a real sandbox
 **What:** `IntacctAuth` was written from documentation, not a live exchange. The exact body keys (`grant_type`, `sender_id`, etc.) and endpoint URL need a smoke test against a Sage sandbox.

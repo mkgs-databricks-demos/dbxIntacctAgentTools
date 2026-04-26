@@ -71,7 +71,9 @@ describe('tRPC tenants', () => {
   it('upsert validates and forwards the input', async () => {
     const upsert = vi.fn().mockResolvedValue({});
     const lakebase = fakeLakebase({ upsert });
-    const caller = appRouter.createCaller(createTestContext(lakebase));
+    const caller = appRouter.createCaller(
+      createTestContext(lakebase, { isAdmin: true, userId: 'admin@example.com' }),
+    );
 
     await caller.tenants.upsert({
       tenantId: 'acme',
@@ -88,7 +90,9 @@ describe('tRPC tenants', () => {
 
   it('upsert rejects invalid input', async () => {
     const lakebase = fakeLakebase();
-    const caller = appRouter.createCaller(createTestContext(lakebase));
+    const caller = appRouter.createCaller(
+      createTestContext(lakebase, { isAdmin: true, userId: 'admin@example.com' }),
+    );
 
     // tenantId too long (>64 chars)
     await expect(
@@ -103,7 +107,9 @@ describe('tRPC tenants', () => {
   it('disable forwards the tenantId argument', async () => {
     const disable = vi.fn().mockResolvedValue({ tenantId: 'acme', enabled: false });
     const lakebase = fakeLakebase({ disable });
-    const caller = appRouter.createCaller(createTestContext(lakebase));
+    const caller = appRouter.createCaller(
+      createTestContext(lakebase, { isAdmin: true, userId: 'admin@example.com' }),
+    );
 
     await caller.tenants.disable({ tenantId: 'acme' });
 
