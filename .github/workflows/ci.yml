@@ -26,7 +26,11 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          # Pinned to 22 LTS — Node 24 + npm 11 + native opt-deps in our
+          # tree (sharp, rolldown-vite override, @ast-grep/napi) hits npm's
+          # "Exit handler never called!" bug and hangs `npm ci` for 8 min
+          # before failing.
+          node-version: '22'
           cache: npm
           cache-dependency-path: dbxIntacctAgentTools_mcp/mcp-intacct/package-lock.json
 
