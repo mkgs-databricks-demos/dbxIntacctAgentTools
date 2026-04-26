@@ -26,19 +26,23 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          # Pinned to 22 LTS — Node 24 + npm 11 + native opt-deps in our
-          # tree (sharp, rolldown-vite override, @ast-grep/napi) hits npm's
-          # "Exit handler never called!" bug and hangs `npm ci` for 8 min
-          # before failing.
           node-version: '22'
           cache: npm
           cache-dependency-path: dbxIntacctAgentTools_mcp/mcp-intacct/package-lock.json
+
+      # Downgrade npm to the last v10 — the v11 series ships the
+      # "Exit handler never called!" bug that hangs `npm ci` for 8
+      # minutes against our dep tree (sharp + rolldown-vite override +
+      # @ast-grep/napi all carry platform-specific binaries).
+      # See https://github.com/npm/cli/issues/8194
+      - name: Pin npm 10
+        run: npm install -g npm@10
 
       - name: Install dependencies
         # `--ignore-scripts` skips the postinstall hook (`appkit generate-types`),
         # which talks to an AppKit-hosted resource and hangs in CI without
         # workspace auth. We don't reference the generated types in CI tests.
-        run: npm ci --ignore-scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
 
       - name: Typecheck
         run: npm run typecheck
