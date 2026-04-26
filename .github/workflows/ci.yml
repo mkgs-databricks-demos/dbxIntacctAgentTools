@@ -31,7 +31,10 @@ jobs:
           cache-dependency-path: dbxIntacctAgentTools_mcp/mcp-intacct/package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        # `--ignore-scripts` skips the postinstall hook (`appkit generate-types`),
+        # which talks to an AppKit-hosted resource and hangs in CI without
+        # workspace auth. We don't reference the generated types in CI tests.
+        run: npm ci --ignore-scripts
 
       - name: Typecheck
         run: npm run typecheck
@@ -72,26 +75,9 @@ jobs:
       - name: Pytest
         run: pytest
 
-  bundles:
-    name: Databricks bundle validate
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Databricks CLI
-        uses: databricks/setup-cli@main
-
-      - name: Validate infra bundle
-        working-directory: dbxIntacctAgentTools_infra
-        # Validation in CI runs without a workspace profile — the CLI
-        # only checks YAML structure / variable resolution / file
-        # references when no profile is configured.
-        run: databricks bundle validate --target dev
-        env:
-          DATABRICKS_HOST: https://fevm-hls-fde.cloud.databricks.com
-
-      - name: Validate mcp bundle
-        working-directory: dbxIntacctAgentTools_mcp
-        run: databricks bundle validate --target dev
-        env:
-          DATABRICKS_HOST: https://fevm-hls-fde.cloud.databricks.com
+  # Note: `databricks bundle validate` makes a real SCIM call to resolve
+  # the workspace user, so it can't run in CI without a real workspace
+  # service principal. Local validation is the gate today — `deploy.sh`
+  # runs `bundle validate` for both bundles before any deploy. Adding a
+  # CI bundle-validate job is tracked as a future cleanup once a workspace
+  # SP credential is available to GitHub Actions.
