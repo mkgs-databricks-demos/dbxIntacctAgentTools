@@ -1,3 +1,4 @@
+-- Databricks notebook source
 -- Bootstrap DDL for Intacct Agent analytical tables.
 -- Idempotent — safe to re-run.
 --
