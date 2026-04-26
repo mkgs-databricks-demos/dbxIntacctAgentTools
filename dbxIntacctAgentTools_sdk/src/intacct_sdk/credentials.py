@@ -52,10 +52,13 @@ class IntacctCredentials:
         w = WorkspaceClient()
 
         def _get(key: str) -> str:
-            secret = w.secrets.get_secret(scope=scope, key=key)
             import base64
 
-            return base64.b64decode(secret.value).decode("utf-8")
+            secret = w.secrets.get_secret(scope=scope, key=key)
+            value = secret.value
+            if value is None:
+                raise ValueError(f"Secret '{key}' in scope '{scope}' has no value")
+            return base64.b64decode(value).decode("utf-8")
 
         return cls(
             sender_id=_get(sender_id_key),

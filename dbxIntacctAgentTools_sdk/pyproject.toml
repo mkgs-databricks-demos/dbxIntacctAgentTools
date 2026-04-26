@@ -35,6 +35,8 @@ dev = [
   "ruff>=0.6",
   "mypy>=1.11",
   "responses>=0.25",
+  "types-requests>=2.32",
+  "databricks-sdk>=0.40",
   "openapi-python-client>=0.21",
 ]
 

@@ -19,7 +19,6 @@ the same.
 from __future__ import annotations
 
 import datetime
-import json
 from threading import Lock
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -119,7 +118,8 @@ class IntacctAuth(requests.auth.AuthBase):
                 payload=_safe_json(resp),
             )
         try:
-            return resp.json()
+            payload: dict[str, Any] = resp.json()
+            return payload
         except ValueError as e:
             raise AuthError("Intacct token exchange returned non-JSON body") from e
 

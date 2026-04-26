@@ -18,7 +18,7 @@ from __future__ import annotations
 import json
 import uuid
 from collections.abc import Iterator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -175,7 +175,7 @@ def _write_raw_response(
     http_status: int,
     body: Any,
 ) -> None:
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    today = datetime.now(UTC).strftime("%Y-%m-%d")
     out_dir = root / tenant_id / today
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / f"{request_id}.json"
@@ -185,7 +185,7 @@ def _write_raw_response(
         "method": method,
         "path": path,
         "http_status": http_status,
-        "captured_at": datetime.now(timezone.utc).isoformat(),
+        "captured_at": datetime.now(UTC).isoformat(),
         "body": body,
     }
     out_path.write_text(json.dumps(payload, default=str))
