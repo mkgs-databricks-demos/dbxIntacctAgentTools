@@ -55,18 +55,22 @@ databricks bundle deploy   --target dev
 
 The orchestrating `deploy.sh` at the project root handles validate → infra readiness checks → app deploy.
 
-## MCP tool surface (skeleton)
+## MCP tool surface
 
 | Domain | Tool | Status |
 |---|---|---|
-| GL | `list_gl_accounts` | Stub |
-| GL | `get_journal_entry` | Stub |
-| GL | `query_gl_details` | Stub |
-| AR | `list_customers` | Stub |
-| AR | `list_open_invoices` | Stub |
-| AR | `get_customer_balance` | Stub |
-| AP | (TODO) `list_vendors`, `list_bills` | — |
-| Cash | (TODO) `list_payments`, `get_cash_position` | — |
+| GL | `list_gl_accounts` | Wired to `IntacctClient.listGlAccounts` |
+| GL | `get_journal_entry` | Wired to `IntacctClient.getJournalEntry` |
+| GL | `query_gl_details` | Wired to `IntacctClient.queryGlDetails` |
+| AR | `list_customers` | Wired to `IntacctClient.listCustomers` |
+| AR | `list_open_invoices` | Wired to `IntacctClient.listOpenInvoices` |
+| AR | `get_customer_balance` | Wired to `IntacctClient.getCustomerBalance` |
+| AP | `list_vendors` | Wired to `IntacctClient.listVendors` |
+| AP | `list_bills` | Wired to `IntacctClient.listBills` |
+| Cash | `list_payments` | Wired to `IntacctClient.listPayments` |
+| Cash | `get_cash_position` | Wired to `IntacctClient.getCashPosition` |
+
+All ten tools resolve per-tenant credentials via the registry, persist a row to `mcp_call_log`, and capture raw Sage responses to the `raw_responses` UC Volume. Return values are typed as `Record<string, unknown>` until [§1.1](../NEXT_STEPS.md) lands typed signatures.
 
 Tool stubs accept the proper `inputSchema` shape and return placeholder text. Wire each one to the TypeScript Sage Intacct client (`server/intacct/`) — generated from the OpenAPI spec — to ship a working tool.
 
