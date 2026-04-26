@@ -100,10 +100,13 @@ Each README documents:
 **Why:** the app SPN can't talk to Databricks (or Sage) without these.
 **Effort:** trivial (one-time per env, plus per-tenant onboarding).
 
-### 4.3 Move `deploy.sh --target dev --run-setup` to CI
-**What:** add a GitHub Action that runs validate-only on every PR (`databricks bundle validate` for both bundles + `npm run typecheck && npm run lint && npx vitest run`).
-**Why:** the existing CodeQL checks catch security issues but not bundle drift or test regressions.
-**Effort:** small.
+### 4.3 Move `deploy.sh --target dev --run-setup` to CI — ✅ done in #16
+**What done:** `.github/workflows/ci.yml` runs three parallel jobs on every PR + push to main:
+- **AppKit**: `npm ci` → `typecheck` → `lint` → `vitest`
+- **Python SDK**: `pip install -e '.[dev]'` → `ruff` → `mypy` → `pytest`
+- **Bundles**: `databricks bundle validate --target dev` for both `_infra` and `_mcp`
+
+Side-fixes to make the existing code green: (1) `pagination.py` `for/yield` → `yield from` (ruff `UP028`); (2) added `types-requests` + `databricks-sdk` to dev extras for mypy stubs; (3) tightened `auth._exchange()` and `credentials.from_databricks_secrets()` return-type narrowing for mypy strict mode.
 
 ---
 

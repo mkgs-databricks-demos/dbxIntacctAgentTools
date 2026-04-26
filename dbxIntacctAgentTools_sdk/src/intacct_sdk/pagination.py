@@ -25,8 +25,7 @@ def paginate(
     while True:
         body = fetch_page(cursor)
         items = body.get(items_key) or []
-        for item in items:
-            yield item
+        yield from items
         cursor = body.get(next_cursor_key)
         page_count += 1
         if cursor is None or cursor == "":

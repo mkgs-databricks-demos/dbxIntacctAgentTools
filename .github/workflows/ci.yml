@@ -1,0 +1,97 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  appkit:
+    name: AppKit (typecheck, lint, vitest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dbxIntacctAgentTools_mcp/mcp-intacct
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: dbxIntacctAgentTools_mcp/mcp-intacct/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Vitest
+        # Skip the smoke spec that requires Playwright + a running server.
+        # vitest filters out playwright specs by directory; we only run the
+        # unit suites under tests/ that don't import @playwright/test.
+        run: npx vitest run
+
+  python-sdk:
+    name: Python SDK (pytest, ruff, mypy)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dbxIntacctAgentTools_sdk
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install package + dev extras
+        run: pip install -e '.[dev]'
+
+      - name: Ruff
+        run: ruff check src tests
+
+      - name: Mypy
+        run: mypy src/intacct_sdk
+
+      - name: Pytest
+        run: pytest
+
+  bundles:
+    name: Databricks bundle validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Databricks CLI
+        uses: databricks/setup-cli@main
+
+      - name: Validate infra bundle
+        working-directory: dbxIntacctAgentTools_infra
+        # Validation in CI runs without a workspace profile — the CLI
+        # only checks YAML structure / variable resolution / file
+        # references when no profile is configured.
+        run: databricks bundle validate --target dev
+        env:
+          DATABRICKS_HOST: https://fevm-hls-fde.cloud.databricks.com
+
+      - name: Validate mcp bundle
+        working-directory: dbxIntacctAgentTools_mcp
+        run: databricks bundle validate --target dev
+        env:
+          DATABRICKS_HOST: https://fevm-hls-fde.cloud.databricks.com
