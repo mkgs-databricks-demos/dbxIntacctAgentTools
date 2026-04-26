@@ -63,7 +63,9 @@ export class IntacctClient {
   private readonly onRawResponse?: (capture: RawResponseCapture) => Promise<void> | void;
 
   constructor(credentials: IntacctCredentials, opts: IntacctClientOptions = {}) {
-    this.auth = new IntacctAuth(credentials);
+    // Thread the optional fetch override through to IntacctAuth so tests
+    // can stub the OAuth token exchange and the REST calls with one mock.
+    this.auth = new IntacctAuth(credentials, opts.fetch ? { fetch: opts.fetch } : {});
     this.tenantId = credentials.companyId;
     this.baseUrl = (opts.baseUrl ?? DEFAULT_BASE_URL).replace(/\/$/, '');
     this.timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
@@ -265,6 +267,92 @@ export class IntacctClient {
     return this.request<Record<string, unknown>>(
       'GET',
       `objects/accounts-receivable/customer/${customerId}/balance`,
+    );
+  }
+
+  // ── Accounts Payable ────────────────────────────────────────────────
+  async listVendors(
+    filters: { nameContains?: string; status?: 'active' | 'inactive'; maxResults?: number } = {},
+  ): Promise<Record<string, unknown>[]> {
+    const params: Record<string, string | number | undefined> = {};
+    if (filters.nameContains) {
+      params['filter[name][contains]'] = filters.nameContains;
+    }
+    if (filters.status) {
+      params['filter[status][eq]'] = filters.status;
+    }
+    return collect(
+      this.list('objects/accounts-payable/vendor', { params, maxResults: filters.maxResults }),
+      filters.maxResults,
+    );
+  }
+
+  async listBills(
+    filters: {
+      vendorId?: string;
+      state?: 'open' | 'partially_paid' | 'paid';
+      postedSince?: string;
+      maxResults?: number;
+    } = {},
+  ): Promise<Record<string, unknown>[]> {
+    const params: Record<string, string | number | undefined> = {};
+    if (filters.vendorId) {
+      params['filter[vendor_id][eq]'] = filters.vendorId;
+    }
+    if (filters.state) {
+      params['filter[state][eq]'] = filters.state;
+    }
+    if (filters.postedSince) {
+      params['filter[posting_date][gte]'] = filters.postedSince;
+    }
+    return collect(
+      this.list('objects/accounts-payable/bill', { params, maxResults: filters.maxResults }),
+      filters.maxResults,
+    );
+  }
+
+  // ── Cash Management ─────────────────────────────────────────────────
+  async listPayments(
+    filters: {
+      direction?: 'in' | 'out';
+      startDate?: string;
+      endDate?: string;
+      accountId?: string;
+      maxResults?: number;
+    } = {},
+  ): Promise<Record<string, unknown>[]> {
+    const params: Record<string, string | number | undefined> = {};
+    if (filters.direction) {
+      params['filter[direction][eq]'] = filters.direction;
+    }
+    if (filters.startDate) {
+      params['filter[payment_date][gte]'] = filters.startDate;
+    }
+    if (filters.endDate) {
+      params['filter[payment_date][lte]'] = filters.endDate;
+    }
+    if (filters.accountId) {
+      params['filter[account_id][eq]'] = filters.accountId;
+    }
+    return collect(
+      this.list('objects/cash-management/payment', { params, maxResults: filters.maxResults }),
+      filters.maxResults,
+    );
+  }
+
+  /**
+   * Cash position roll-up across all configured cash accounts as of `asOfDate`
+   * (defaults to today). Returns one row per account with end-of-day balance.
+   */
+  async getCashPosition(args: { asOfDate?: string } = {}): Promise<Record<string, unknown>> {
+    const params: Record<string, string> = {};
+    if (args.asOfDate) {
+      params['as_of'] = args.asOfDate;
+    }
+    return this.request<Record<string, unknown>>(
+      'GET',
+      'objects/cash-management/cash-position',
+      { params },
     );
   }
 }

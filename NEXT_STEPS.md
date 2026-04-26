@@ -34,10 +34,8 @@ Each README documents:
 **Why:** removes "field doesn't exist" errors from MCP tool code; lets the MCP server emit richer `outputSchema` to AI Playground and other clients.
 **Effort:** Option A — 1 PR per SDK (~half day each). Option B — same plus one manual download per Sage release.
 
-### 1.2 Build out the AP / Cash MCP tools
-**What:** add `list_vendors`, `list_bills`, `list_payments`, `get_cash_position` to `server/mcp/tools/`. Mirror the GL / AR shape: zod input schemas, `runTenantCall`, persisted to `mcp_call_log`.
-**Why:** the current 6-tool surface is read-heavy and GL/AR-only; AP and Cash are the other two domains operators ask for.
-**Effort:** small.
+### 1.2 Build out the AP / Cash MCP tools — ✅ done in #10
+**What done:** four new tools — `list_vendors`, `list_bills`, `list_payments`, `get_cash_position` — added to `server/mcp/tools/{accounts_payable,cash}.ts`. Surface goes from 6 → 10 tools across 4 domains. Backed by `IntacctClient.{listVendors,listBills,listPayments,getCashPosition}` with full filter forwarding and pagination. Tests in `tests/intacct-client-ap-cash.test.ts` (7 specs, including a fix that threads a single mocked `fetch` through both auth and REST calls).
 
 ### 1.3 Add write-path MCP tools
 **What:** `post_journal_entry`, `record_adjustment`, `apply_payment` — guarded by an explicit allow-list on the tenant registry (`writes_enabled` flag), and by tRPC-level auth (see §3.1).
