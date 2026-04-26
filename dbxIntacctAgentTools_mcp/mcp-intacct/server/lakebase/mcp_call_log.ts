@@ -25,7 +25,16 @@ export interface RecentCallRow {
 export interface RecentQuery {
   tenantId?: string;
   toolName?: string;
+  status?: 'success' | 'error';
   limit?: number;
+  offset?: number;
+}
+
+export interface RecentPage {
+  rows: RecentCallRow[];
+  total: number;
+  limit: number;
+  offset: number;
 }
 
 export interface CallLogEntry {
@@ -81,25 +90,48 @@ export class CallLog {
     }
   }
 
+  /** Distinct tool names that have been logged — for the filter dropdown. */
+  async distinctToolNames(): Promise<string[]> {
+    const result = await this.pool.query<{ tool_name: string }>(
+      `SELECT DISTINCT tool_name FROM mcp_call_log ORDER BY tool_name`,
+    );
+    return result.rows.map((r) => r.tool_name);
+  }
+
   /**
-   * Most recent MCP tool invocations for the admin UI.
-   * Optional filters by tenant_id and tool_name.
+   * Paginated MCP tool invocations for the admin UI.
+   *
+   * Filters: tenantId, toolName, status (success|error).
+   * Pagination: limit + offset. Returns the total row count matching
+   * the filters so the UI can render Prev/Next + page indicator.
    */
-  async recent(query: RecentQuery = {}): Promise<RecentCallRow[]> {
-    const { tenantId, toolName, limit = 50 } = query;
+  async recent(query: RecentQuery = {}): Promise<RecentPage> {
+    const { tenantId, toolName, status, limit = 50, offset = 0 } = query;
     const filters: string[] = [];
-    const args: unknown[] = [];
+    const filterArgs: unknown[] = [];
     if (tenantId) {
-      args.push(tenantId);
-      filters.push(`tenant_id = $${args.length}`);
+      filterArgs.push(tenantId);
+      filters.push(`tenant_id = $${filterArgs.length}`);
     }
     if (toolName) {
-      args.push(toolName);
-      filters.push(`tool_name = $${args.length}`);
+      filterArgs.push(toolName);
+      filters.push(`tool_name = $${filterArgs.length}`);
     }
-    args.push(limit);
-    const limitParam = `$${args.length}`;
+    if (status) {
+      filterArgs.push(status);
+      filters.push(`status = $${filterArgs.length}`);
+    }
     const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
+
+    const totalResult = await this.pool.query<{ total: string | number }>(
+      `SELECT COUNT(*)::bigint AS total FROM mcp_call_log ${where}`,
+      filterArgs,
+    );
+    const total = Number(totalResult.rows[0]?.total ?? 0);
+
+    const pageArgs = [...filterArgs, limit, offset];
+    const limitParam = `$${pageArgs.length - 1}`;
+    const offsetParam = `$${pageArgs.length}`;
     const result = await this.pool.query<{
       call_id: string;
       request_id: string | null;
@@ -120,22 +152,28 @@ export class CallLog {
          FROM mcp_call_log
          ${where}
         ORDER BY created_at DESC
-        LIMIT ${limitParam}`,
-      args,
+        LIMIT ${limitParam}
+       OFFSET ${offsetParam}`,
+      pageArgs,
     );
-    return result.rows.map((row) => ({
-      callId: row.call_id,
-      requestId: row.request_id,
-      tenantId: row.tenant_id,
-      userId: row.user_id,
-      toolName: row.tool_name,
-      toolInput: row.tool_input,
-      toolOutputSummary: row.tool_output_summary,
-      sageCallsMade: row.sage_calls_made,
-      latencyMs: Number(row.latency_ms),
-      status: row.status,
-      errorMessage: row.error_message,
-      createdAt: row.created_at,
-    }));
+    return {
+      rows: result.rows.map((row) => ({
+        callId: row.call_id,
+        requestId: row.request_id,
+        tenantId: row.tenant_id,
+        userId: row.user_id,
+        toolName: row.tool_name,
+        toolInput: row.tool_input,
+        toolOutputSummary: row.tool_output_summary,
+        sageCallsMade: row.sage_calls_made,
+        latencyMs: Number(row.latency_ms),
+        status: row.status,
+        errorMessage: row.error_message,
+        createdAt: row.created_at,
+      })),
+      total,
+      limit,
+      offset,
+    };
   }
 }

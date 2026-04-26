@@ -70,10 +70,8 @@ Each README documents:
 **Effort:** small.
 **Prereq:** infra deployed.
 
-### 2.4 Pagination + filtering on the Recent Calls UI
-**What:** `RecentCalls.tsx` shows the last 25 only. Add filter inputs (tenant, tool name, status) and offset-based pagination using existing `mcpCallLog.recent` filters.
-**Why:** at any real volume, last-25 is too small.
-**Effort:** small.
+### 2.4 Pagination + filtering on the Recent Calls UI — ✅ done in #13
+**What done:** `mcpCallLog.recent` returns `{ rows, total, limit, offset }` and accepts `status: 'success'|'error'` + `offset` filters. New `mcpCallLog.toolNames` query feeds the tool dropdown. RecentCalls.tsx now has tenant/tool/status filter inputs and Prev/Next pagination with a "1–25 of 137" indicator. Zod validation hard-caps `limit` at 500 and rejects negative offsets / unknown status values.
 
 ---
 

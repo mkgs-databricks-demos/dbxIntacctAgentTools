@@ -75,19 +75,26 @@ export const appRouter = t.router({
           .object({
             tenantId: z.string().optional(),
             toolName: z.string().optional(),
-            limit: z.number().int().positive().max(500).optional().default(50),
+            status: z.enum(['success', 'error']).optional(),
+            limit: z.number().int().positive().max(500).optional().default(25),
+            offset: z.number().int().min(0).optional().default(0),
           })
           .optional(),
       )
       .query(async ({ ctx, input }) => {
-        // Direct pg query via the call log's pool to keep all DB access
-        // colocated in the lakebase module.
         return ctx.lakebase.callLog.recent({
           tenantId: input?.tenantId,
           toolName: input?.toolName,
-          limit: input?.limit ?? 50,
+          status: input?.status,
+          limit: input?.limit ?? 25,
+          offset: input?.offset ?? 0,
         });
       }),
+
+    /** Distinct tool names for the filter dropdown. */
+    toolNames: publicProcedure.query(async ({ ctx }) => {
+      return ctx.lakebase.callLog.distinctToolNames();
+    }),
   }),
 });
 
