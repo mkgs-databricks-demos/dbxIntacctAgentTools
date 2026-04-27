@@ -57,11 +57,9 @@ Each README documents:
 ### 2.2 Stream `mcp_call_log` from Lakebase → UC Delta — ✅ done in #15
 **What done:** new `intacct_mcp_call_log_sync` Lakeflow Job in the infra bundle. Watermark-driven incremental copy: reads `MAX(created_at)` from the UC Delta target, fetches Lakebase rows newer than that (capped by `batch_size=5000`), parses `tool_input` JSONB through `parse_json`, appends to Delta. Schedule cron `0 0/15 * * * ?` PAUSED by default — flip via UI when downstream consumers are wired. Connects to Lakebase via OAuth-rotated Postgres using `psycopg`. Side-fix: bundle validate was failing on the existing UC setup job because `target-tables-ddl.sql` lacked the `-- Databricks notebook source` header; added it. `databricks bundle validate --target dev` now passes.
 
-### 2.3 Verify OTel telemetry export
-**What:** the `intacct_mcp.app.yml` declares `telemetry_export_destinations` for `app_otel_logs`/`_traces`/`_metrics`. After first deploy, confirm the three Delta tables get populated and add a default Lakeview dashboard.
-**Why:** built-in OTel is free; just need to confirm it works and surface it.
-**Effort:** small.
-**Prereq:** infra deployed.
+### 2.3 Verify OTel telemetry export — ✅ done in #18
+**What done:** new `intacct_otel_dashboard` Lakeview dashboard added to the infra bundle, sourced from `src/dashboards/otel.lvdash.json`. Six widgets across one page: spans-per-minute line, p50/p95/p99 latency line, top spans table, recent error log table, metrics summary table, and a header card with verification instructions. Datasets are parameterized on the catalog/schema so the same dashboard works across targets. Companion `verify_otel.sql` script with five sequential checks (table existence + row counts + most-recent-activity + per-tool span counts + sample spans) lives next to the dashboard JSON. Infra bundle's `databricks.yml` now includes `resources/*.dashboard.yml` so new dashboards land automatically. Bundle validates with `databricks bundle validate --target dev`.
+**What remains:** post-deploy live confirmation that the three OTel Delta tables actually populate within 60s of the app's first cold-start request. Until then, dashboard widgets render "no data" — that's the expected gate.
 
 ### 2.4 Pagination + filtering on the Recent Calls UI — ✅ done in #13
 **What done:** `mcpCallLog.recent` returns `{ rows, total, limit, offset }` and accepts `status: 'success'|'error'` + `offset` filters. New `mcpCallLog.toolNames` query feeds the tool dropdown. RecentCalls.tsx now has tenant/tool/status filter inputs and Prev/Next pagination with a "1–25 of 137" indicator. Zod validation hard-caps `limit` at 500 and rejects negative offsets / unknown status values.

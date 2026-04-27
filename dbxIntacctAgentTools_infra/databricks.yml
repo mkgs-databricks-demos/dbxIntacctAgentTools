@@ -18,6 +18,7 @@ include:
   - resources/*.job.yml
   - resources/*.experiment.yml
   - resources/*.registered_model.yml
+  - resources/*.dashboard.yml
   - resources/*.yml
 
 # ---------------------------------------------------------------------------

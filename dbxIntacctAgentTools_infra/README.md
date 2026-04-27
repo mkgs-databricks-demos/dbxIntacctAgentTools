@@ -76,3 +76,31 @@ databricks apps update mcp-intacct-dev \
 ```
 
 If either env var is unset, the indexer is skipped silently and only the volume write happens. The Delta target table is created by the existing UC setup job (`raw_response_index` in `target-tables-ddl.sql`).
+
+## OTel verification
+
+The MCP app declares `telemetry_export_destinations` in `dbxIntacctAgentTools_mcp/resources/intacct_mcp.app.yml`, which streams traces/logs/metrics from the running app into three UC Delta tables:
+
+- `{catalog}.{schema}.{prefix}_otel_traces`
+- `{catalog}.{schema}.{prefix}_otel_logs`
+- `{catalog}.{schema}.{prefix}_otel_metrics`
+
+Where `{prefix}` defaults to `app` for the infra bundle.
+
+Two artifacts ship with the bundle:
+
+1. **Lakeview dashboard** (`resources/otel.dashboard.yml` → `src/dashboards/otel.lvdash.json`) — live view of spans-per-minute, p50/p95/p99 latency, top spans, recent errors, and metric counters. Auto-deploys with the infra bundle.
+2. **Verification SQL** (`src/dashboards/verify_otel.sql`) — copy-pasteable queries that confirm the three tables exist, have rows, and show recent activity.
+
+Verification flow (run after the first deploy + at least one MCP tool call):
+
+```bash
+# 1. Open the dashboard
+databricks bundle summary --target dev | jq '.resources.dashboards.intacct_otel_dashboard.url'
+
+# 2. Or run the verification SQL manually in the workspace SQL editor —
+#    the queries are in src/dashboards/verify_otel.sql. Replace the
+#    `hls_fde_dev.intacct` placeholder with your target's catalog.schema.
+```
+
+If the dashboard is empty after the first MCP tool call, the most common cause is the app SPN missing CREATE TABLE on the schema — the platform creates the OTel tables lazily on first emit, and silently fails without privilege.
